@@ -1,0 +1,14 @@
+.data/
+.env*
+.git/
+.agents/
+.codex/
+.next/
+node_modules/
+test-results/
+playwright-report/
+tests/
+scripts/
+*.log
+*.png
+tsconfig.tsbuildinfo
