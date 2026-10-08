@@ -76,7 +76,6 @@ export async function staticFiles(build: Buffer) {
   const data = Buffer.from(
     JSON.stringify({
       version: 2,
-      public: false,
       builds: [{ src: "**", use: "@vercel/static" }],
     }),
   );

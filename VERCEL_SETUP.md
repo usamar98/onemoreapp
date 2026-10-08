@@ -55,6 +55,8 @@ Import the Chapter repository into a new Vercel project, or deploy this director
 
 Build command: `npm run build`. Install command: `npm ci`. Vercel's Next.js output is detected automatically. Deploy after the cloud configuration check passes. Set the public origin to the assigned Vercel production domain (or your custom domain), then redeploy if that value changed.
 
+If Vercel reports `should NOT have additional property public`, deploy the latest `main` commit. The unsupported `public` key has been removed from both Chapter's configuration and generated static-project configurations. Vercel protects source and log views behind authentication without this flag. Chapter's source downloads still require separate owner permission. See [Vercel configuration](https://vercel.com/docs/project-configuration/vercel-json#public).
+
 Chapter's API allows up to 300 seconds for imports, validation, and publishing, subject to your Vercel plan. Large uploads travel directly to private Storage. The SaaS refuses to use an ephemeral local database on Vercel. A successful build alone does not verify remote persistence; exercise the live app after deployment.
 
 ## 5. Connect Vercel inside Chapter

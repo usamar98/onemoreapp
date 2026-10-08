@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import JSZip from "jszip";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   deployStaticBuild,
   applyDeployment,
@@ -9,7 +10,11 @@ import {
 } from "../src/lib/vercel";
 import { demoProjects } from "../src/lib/demo";
 
-test("Vercel uploads only static artifacts, forces private source, and uses owner/team credentials", async () => {
+test("Vercel filters private source, emits supported configuration, and uses owner/team credentials", async () => {
+  const applicationConfig = JSON.parse(
+    readFileSync(new URL("../vercel.json", import.meta.url), "utf8"),
+  );
+  assert.equal(Object.hasOwn(applicationConfig, "public"), false);
   const zip = new JSZip();
   zip.file("index.html", "<h1>A compiled build</h1>");
   zip.file("assets/app.js", "console.log('browser asset')");
@@ -25,6 +30,22 @@ test("Vercel uploads only static artifacts, forces private source, and uses owne
   const calls: { url: URL; body: RequestInit["body"]; headers: Headers }[] = [];
   const request: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
+    if (url.pathname === "/v2/files") {
+      const content = Buffer.from(init!.body as Uint8Array).toString();
+      if (
+        content.startsWith('{"version"') &&
+        Object.hasOwn(JSON.parse(content), "public")
+      )
+        return Response.json(
+          {
+            error: {
+              message:
+                "Invalid request: should NOT have additional property public",
+            },
+          },
+          { status: 400 },
+        );
+    }
     calls.push({ url, body: init?.body, headers: new Headers(init?.headers) });
     return new Response(
       url.pathname === "/v13/deployments"
@@ -80,7 +101,7 @@ test("Vercel uploads only static artifacts, forces private source, and uses owne
   const config = uploaded
     .map((c) => Buffer.from(c.body as Uint8Array).toString())
     .find((text) => text.startsWith('{"version"'))!;
-  assert.equal(JSON.parse(config).public, false);
+  assert.equal(Object.hasOwn(JSON.parse(config), "public"), false);
   assert.deepEqual(JSON.parse(config).builds, [
     { src: "**", use: "@vercel/static" },
   ]);
