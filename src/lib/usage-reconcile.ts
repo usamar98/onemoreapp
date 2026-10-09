@@ -28,8 +28,8 @@ export async function reconcileStorage(owner: string) {
       parameters: [owner],
     },
     {
-      sql: "UPDATE usage_counters SET used=(SELECT COALESCE(sum(size),0) FROM uploads WHERE owner=?)+(SELECT COALESCE(sum(bytes),0) FROM templates WHERE workspace_id=?)+(SELECT COALESCE(sum(size),0) FROM upload_tickets WHERE owner=?)+(SELECT COALESCE(sum(bytes),0) FROM backups WHERE owner=?) WHERE owner=? AND kind='storage' AND period='all'",
-      parameters: [owner, owner, owner, owner, owner],
+      sql: "UPDATE usage_counters SET used=(SELECT COALESCE(sum(size),0) FROM uploads WHERE owner=?)+(SELECT COALESCE(sum(bytes),0) FROM templates WHERE workspace_id=?)+(SELECT COALESCE(sum(size),0) FROM upload_tickets WHERE owner=?)+(SELECT COALESCE(sum(bytes),0) FROM backups WHERE owner=?)+(SELECT COALESCE(sum(reserved),0) FROM transfer_uploads WHERE owner=?) WHERE owner=? AND kind='storage' AND period='all'",
+      parameters: [owner, owner, owner, owner, owner, owner],
     },
   ]);
   return { measuredFiles: rows.length };

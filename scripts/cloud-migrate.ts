@@ -169,6 +169,57 @@ async function migrate() {
     console.log(
       `Migrated ${uploads.length} private files. Local data remains intact; project IDs and share links are preserved.`,
     );
+    // Phase Six references immutable uploads, so migrate it after file records.
+    for (const table of [
+      "preservation_bundles",
+      "bundle_checks",
+      "project_recreations",
+      "transfer_uploads",
+      "transfer_chunks",
+      "package_links",
+      "package_transfers",
+      "shared_services",
+      "service_dependencies",
+    ]) {
+      if (
+        !source
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          )
+          .get(table)
+      )
+        continue;
+      for (const original of source.prepare(`SELECT * FROM ${table}`).all()) {
+        const row = { ...original };
+        if (table === "transfer_chunks" && row.data) {
+          const ticket = source
+            .prepare("SELECT owner,project_id FROM transfer_uploads WHERE id=?")
+            .get(row.upload_id);
+          if (!ticket)
+            throw new Error("Staging chunk has no owning upload session.");
+          const objectName = `${ticket.owner}/${ticket.project_id}/staging/${row.upload_id}/${row.part}-migrated`;
+          const result = await storage.upload(
+            objectName,
+            Buffer.from(row.data as Uint8Array),
+            { contentType: "application/octet-stream", upsert: false },
+          );
+          if (
+            result.error &&
+            result.error.message !== "The resource already exists"
+          )
+            throw new Error(
+              "Encrypted staging transfer could not be migrated. Retry after checking private storage.",
+            );
+          row.data = null;
+          row.object_name = objectName;
+        }
+        const columns = Object.keys(row);
+        await sql.unsafe(
+          `INSERT INTO chapter.${table}(${columns.join(",")}) VALUES(${columns.map((_, i) => `$${i + 1}`).join(",")}) ON CONFLICT DO NOTHING`,
+          Object.values(row) as never[],
+        );
+      }
+    }
   } finally {
     source.close();
     await sql.end();

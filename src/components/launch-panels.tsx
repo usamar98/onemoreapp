@@ -189,17 +189,19 @@ export function LaunchPanel({
   workspace,
   owner,
   initialProject,
+  initialTab,
   onClose,
   onRefresh,
 }: {
   workspace: Workspace;
   owner: string;
   initialProject?: Project;
+  initialTab?: "support";
   onClose: () => void;
   onRefresh: () => void;
 }) {
   const [tab, setTab] = useState<Tab>(
-      initialProject ? "reviews" : "onboarding",
+      initialTab || (initialProject ? "reviews" : "onboarding"),
     ),
     r = useResource<LaunchData>(
       workspace.user ? "launch?workspace=" + encodeURIComponent(owner) : null,
@@ -1601,7 +1603,7 @@ function Recovery({
           <ul className="result-list">
             {result.projects.map((p) => (
               <li key={p.id}>
-                <a href={"/?project=" + p.id}>{p.name} ↗</a>
+                <a href={"/dashboard?project=" + p.id}>{p.name} ↗</a>
               </li>
             ))}
           </ul>

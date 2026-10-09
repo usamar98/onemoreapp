@@ -599,6 +599,12 @@ function Hosting({ project, onSaved }: { project: Project; onSaved: Saved }) {
                   <li key={line}>{line}</li>
                 ))}
               </ul>
+              <h4>Projects that may be affected</h4>
+              <ul>
+                {preview.affected?.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
               <Field label={`Type ${preview.name} to confirm`}>
                 <input
                   value={name}

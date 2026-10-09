@@ -4,7 +4,7 @@ Chapter now uses Vercel for project hosting. To host the SaaS itself on Vercel, 
 
 ## 1. Set up your Supabase project
 
-Create a dedicated Supabase project in your chosen organization. Review its plan and costs in your account. Run [cloud/schema.sql](cloud/schema.sql) in the project's SQL editor. This creates 41 tables in the private `chapter` schema and the private `chapter-files` bucket. Leave `chapter` out of the Data API's exposed schemas. Do not add public Storage policies to this bucket.
+Create a dedicated Supabase project in your chosen organization. Review its plan and costs in your account. Run [cloud/schema.sql](cloud/schema.sql) in the project's SQL editor. This creates 50 tables in the private `chapter` schema and the private `chapter-files` bucket. Leave `chapter` out of the Data API's exposed schemas. Do not add public Storage policies to this bucket.
 
 Chapter keeps its existing server-side authentication. Passwords are hashed, cookies are HttpOnly, and server queries check project ownership. Browser roles have no access to Chapter's tables; RLS is enabled as additional protection. PostgreSQL connects using your project's `postgres` role through the transaction pooler. Supabase is used for database and private file persistence.
 
@@ -57,7 +57,7 @@ Build command: `npm run build`. Install command: `npm ci`. Vercel's Next.js outp
 
 If Vercel reports `should NOT have additional property public`, deploy the latest `main` commit. The unsupported `public` key has been removed from both Chapter's configuration and generated static-project configurations. Vercel protects source and log views behind authentication without this flag. Chapter's source downloads still require separate owner permission. See [Vercel configuration](https://vercel.com/docs/project-configuration/vercel-json#public).
 
-Chapter's API allows up to 300 seconds for imports, validation, and publishing, subject to your Vercel plan. Large uploads travel directly to private Storage. The SaaS refuses to use an ephemeral local database on Vercel. A successful build alone does not verify remote persistence; exercise the live app after deployment.
+Chapter's API allows up to 300 seconds for imports, validation, and publishing, subject to your Vercel plan. Simple uploads travel directly to private Storage; Phase Six uploads use bounded resumable chunks with encrypted private staging. The SaaS refuses to use an ephemeral local database on Vercel. A successful build alone does not verify remote persistence; exercise the live app after deployment.
 
 ## 5. Connect Vercel inside Chapter
 
@@ -82,3 +82,7 @@ Reference: [Supabase connection pooling](https://supabase.com/docs/guides/databa
 # Phase Five upgrade
 
 Reapply the idempotent schema before deploying Phase Five, then run the cloud configuration check. The new continuation, capture-token, proposal, attention, feedback and product-event tables remain private. Set `CHAPTER_ADMIN_USER_IDS` to trusted registered database user IDs only when enabling platform feedback administration. It defaults to disabled. Keep `OPENAI_API_KEY` server-only and reuse the existing worker/cron for proposal retries. See [PHASE_FIVE.md](PHASE_FIVE.md) for the authenticated capture API and CLI; capture tokens grant no hosting or source-download access.
+
+# Phase Six upgrade
+
+Reapply the schema and run the cloud configuration check before upgrading. Preservation, rebuild, recreation, transfer and dependency tables remain private. The private bucket now accepts 100 MiB objects, while uploads travel in 1 MiB authenticated chunks. Configure optional Sandbox credentials for npm build verification and keep them server-only. Schedule the existing worker/cron for retries and retention cleanup. See [PHASE_SIX.md](PHASE_SIX.md) for supported static recreation, secure configuration, package sharing and large-backup limitations.

@@ -12,7 +12,13 @@ import {
   Github,
 } from "lucide-react";
 import { Brand, Button, Field, Notice, api } from "./ui";
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
+export function AuthForm({
+  mode,
+  returnTo = "/dashboard",
+}: {
+  mode: "login" | "register";
+  returnTo?: string;
+}) {
   const router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -23,7 +29,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     const form = new FormData(e.currentTarget);
     try {
       await api(`auth/${mode}`, "POST", Object.fromEntries(form.entries()));
-      router.push("/");
+      router.push(returnTo);
       router.refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -68,7 +74,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       </div>
       <main id="main-content" tabIndex={-1} className="auth-main">
         <Link href="/" className="auth-back">
-          ← Back to the workspace
+          ← Back to Chapter
         </Link>
         <div className="auth-form-wrap">
           <span className="auth-flower">✳</span>
@@ -82,7 +88,12 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               ? "Your projects are right where you left them."
               : "A little space for everything you want to build."}
           </p>
-          <form onSubmit={submit}>
+          <noscript>
+            <p className="field-hint">
+              Enable JavaScript to create or sign in to your workspace.
+            </p>
+          </noscript>
+          <form method="post" onSubmit={submit}>
             {error ? <Notice kind="error">{error}</Notice> : null}
             {mode === "register" ? (
               <Field label="Your name">
@@ -138,7 +149,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               setBusy(true);
               try {
                 await api("auth/demo", "POST");
-                router.push("/");
+                router.push(returnTo);
                 router.refresh();
               } catch (err) {
                 setError((err as Error).message);
@@ -154,7 +165,14 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {mode === "login"
               ? "New around here?"
               : "Already have a workspace?"}{" "}
-            <Link href={mode === "login" ? "/signup" : "/login"}>
+            <Link
+              href={
+                (mode === "login" ? "/signup" : "/login") +
+                (returnTo !== "/dashboard"
+                  ? "?next=" + encodeURIComponent(returnTo)
+                  : "")
+              }
+            >
               {mode === "login" ? "Create an account" : "Sign in"}
             </Link>
           </p>

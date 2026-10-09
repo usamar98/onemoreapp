@@ -69,6 +69,9 @@ const LaunchPanel = dynamic(() =>
 const ContinuationPanel = dynamic(() =>
   import("./continuation-panel").then((m) => m.ContinuationPanel),
 );
+const PreservationPanel = dynamic(() =>
+  import("./preservation-panel").then((m) => m.PreservationPanel),
+);
 type OpenPanel =
   | {
       kind:
@@ -77,8 +80,9 @@ type OpenPanel =
     }
   | { kind: "integrations" | "help" | "account" }
   | { kind: "knowledge"; tool: KnowledgeTool; project?: Project }
-  | { kind: "launch"; project?: Project }
-  | { kind: "continuation"; project?: Project };
+  | { kind: "launch"; project?: Project; tool?: "support" }
+  | { kind: "continuation"; project?: Project }
+  | { kind: "preservation"; project?: Project };
 export function Dashboard({ initial }: { initial: Workspace }) {
   const [activeWorkspace, setActiveWorkspace] = useState(
     initial.user?.id || "",
@@ -88,6 +92,9 @@ export function Dashboard({ initial }: { initial: Workspace }) {
       localStorage.setItem("chapter-workspace-v3", initial.user.id);
     const params = new URL(window.location.href).searchParams;
     if (params.get("invite")) setPanel({ kind: "knowledge", tool: "team" });
+    if (params.get("billing")) setPanel({ kind: "knowledge", tool: "billing" });
+    if (params.get("tool") === "support")
+      setPanel({ kind: "launch", tool: "support" });
     const p = initial.projects.find((p) => p.id === params.get("project"));
     if (p) {
       setActiveWorkspace(p.workspaceOwner || initial.user?.id || "");
@@ -431,6 +438,16 @@ export function Dashboard({ initial }: { initial: Workspace }) {
         </nav>
         <span className="nav-label tools-label">TOOLS</span>
         <nav aria-label="Workspace tools">
+          <button
+            className="nav-item"
+            onClick={() => {
+              setPanel({ kind: "preservation" });
+              setMobileNav(false);
+            }}
+          >
+            <Archive size={18} />
+            Preserve & rebuild
+          </button>
           <button
             className="nav-item"
             onClick={() => {
@@ -1300,6 +1317,9 @@ export function Dashboard({ initial }: { initial: Workspace }) {
             setPanel({ kind: "knowledge", tool: "project", project: selected })
           }
           onLaunch={() => setPanel({ kind: "launch", project: selected })}
+          onPreserve={() =>
+            setPanel({ kind: "preservation", project: selected })
+          }
         />
       ) : null}
       {selected && panel?.kind === "lifecycle" ? (
@@ -1333,12 +1353,22 @@ export function Dashboard({ initial }: { initial: Workspace }) {
           workspace={workspace}
           owner={activeWorkspace || workspace.user?.id || ""}
           initialProject={selected || undefined}
+          initialTab={panel.tool}
           onClose={() => setPanel(null)}
           onRefresh={refresh}
         />
       ) : null}
       {panel?.kind === "continuation" ? (
         <ContinuationPanel
+          workspace={workspace}
+          owner={activeWorkspace || workspace.user?.id || ""}
+          initialProject={selected || undefined}
+          onClose={() => setPanel(null)}
+          onRefresh={refresh}
+        />
+      ) : null}
+      {panel?.kind === "preservation" ? (
+        <PreservationPanel
           workspace={workspace}
           owner={activeWorkspace || workspace.user?.id || ""}
           initialProject={selected || undefined}
@@ -1439,8 +1469,7 @@ export function Dashboard({ initial }: { initial: Workspace }) {
               <Button
                 onClick={async () => {
                   await api("auth/logout", "POST");
-                  setPanel(null);
-                  await refresh();
+                  window.location.assign("/");
                 }}
               >
                 <LogOut size={16} />

@@ -84,7 +84,7 @@ export async function usageInit(owner: string, kind: UsageKind) {
     kind === "projects"
       ? "SELECT count(*) FROM projects WHERE owner=?"
       : kind === "storage"
-        ? "SELECT COALESCE(sum(size),0)+(SELECT COALESCE(sum(bytes),0) FROM templates WHERE workspace_id=?)+(SELECT COALESCE(sum(bytes),0) FROM backups WHERE owner=?)+(SELECT COALESCE(sum(size),0) FROM upload_tickets WHERE owner=?) FROM uploads WHERE owner=?"
+        ? "SELECT COALESCE(sum(size),0)+(SELECT COALESCE(sum(bytes),0) FROM templates WHERE workspace_id=?)+(SELECT COALESCE(sum(bytes),0) FROM backups WHERE owner=?)+(SELECT COALESCE(sum(size),0) FROM upload_tickets WHERE owner=?)+(SELECT COALESCE(sum(reserved),0) FROM transfer_uploads WHERE owner=?) FROM uploads WHERE owner=?"
         : kind === "seats"
           ? "SELECT 1+count(*) FROM members WHERE workspace_id=?"
           : "SELECT 0";
@@ -96,7 +96,7 @@ export async function usageInit(owner: string, kind: UsageKind) {
       ...(kind === "ai"
         ? [owner, kind, p]
         : kind === "storage"
-          ? [owner, kind, p, owner, owner, owner, owner]
+          ? [owner, kind, p, owner, owner, owner, owner, owner]
           : [owner, kind, p, owner]),
     );
   if (

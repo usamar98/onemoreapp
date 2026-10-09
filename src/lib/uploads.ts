@@ -44,9 +44,19 @@ export function boundedEntry(
     stream.resume();
   });
 }
-export async function inspectZip(data: Buffer, secrets: string[] = []) {
-  if (data.length > MAX_UPLOAD)
-    throw new AppError("ZIP files must be smaller than 20 MB.");
+export async function inspectZip(
+  data: Buffer,
+  secrets: string[] = [],
+  maximum = MAX_UPLOAD,
+) {
+  const expandedLimit =
+    maximum === MAX_UPLOAD
+      ? 50 * 1024 * 1024
+      : Math.min(maximum * 3, 200 * 1024 * 1024);
+  if (data.length > maximum)
+    throw new AppError(
+      `ZIP files must be smaller than ${Math.round(maximum / 1024 ** 2)} MB.`,
+    );
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(data);
@@ -76,11 +86,13 @@ export async function inspectZip(data: Buffer, secrets: string[] = []) {
       /^[A-Za-z]:/.test(unsafe)
     )
       throw new AppError("The ZIP contains an unsafe file path.");
+    if (/[\u0000-\u001f\\:<>|?*]/.test(unsafe))
+      throw new AppError("The ZIP contains a non-portable or unsafe filename.");
     const name = entry.name.slice(strip.length);
     if (/(^|\/)\.env\.(?:example|sample|template)$/i.test(name)) {
       const template = await boundedEntry(
         entry,
-        Math.min(64 * 1024, 50 * 1024 * 1024 - bytes),
+        Math.min(64 * 1024, expandedLimit - bytes),
       );
       bytes += template.length;
       for (const match of template
@@ -97,15 +109,17 @@ export async function inspectZip(data: Buffer, secrets: string[] = []) {
     const declared =
       (entry as unknown as { _data?: { uncompressedSize: number } })._data
         ?.uncompressedSize || 0;
-    if (declared > MAX_UPLOAD || bytes + declared > 50 * 1024 * 1024)
-      throw new AppError("The expanded ZIP is too large (50 MB maximum).");
+    if (declared > MAX_UPLOAD || bytes + declared > expandedLimit)
+      throw new AppError(
+        `The expanded ZIP exceeds ${Math.round(expandedLimit / 1024 ** 2)} MB or a file exceeds 20 MB.`,
+      );
     const buffer = await boundedEntry(
       entry,
-      Math.min(MAX_UPLOAD, 50 * 1024 * 1024 - bytes),
+      Math.min(MAX_UPLOAD, expandedLimit - bytes),
     );
     bytes += buffer.length;
-    if (bytes > 50 * 1024 * 1024)
-      throw new AppError("The expanded ZIP is too large (50 MB maximum).");
+    if (bytes > expandedLimit)
+      throw new AppError("The expanded ZIP is too large.");
     if (
       textFiles.test(name) &&
       redact(buffer.toString("utf8"), secrets) !== buffer.toString("utf8")

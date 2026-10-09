@@ -15,7 +15,7 @@ test("imports a real public GitHub repository with a pinned source snapshot", as
     },
   });
   expect(account.status()).toBe(201);
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New project" }).click();
   await page
     .getByRole("button", { name: "GitHub repository", exact: true })

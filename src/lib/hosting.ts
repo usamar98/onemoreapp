@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { AppError } from "./security";
 import { vercelRequest, type VercelConnection } from "./vercel";
 import type { Project } from "./types";
+import { hostingImpact } from "./dependencies";
+import { actorContext } from "./request-context";
 export type HostingPreview = {
   id: string;
   name: string;
@@ -10,6 +12,7 @@ export type HostingPreview = {
   remain: string[];
   expires: number;
   confirmation: string;
+  affected: string[];
 };
 type ProviderProject = {
   id: string;
@@ -17,6 +20,7 @@ type ProviderProject = {
   paused?: boolean;
   alias?: { domain?: string }[];
   targets?: { production?: { alias?: string[] } };
+  dependencyDigest?: string;
 };
 export async function hostingStatus(
   connection: VercelConnection,
@@ -77,6 +81,7 @@ function signature(
         connection.teamId,
         expires,
         target,
+        remote.dependencyDigest,
       ]),
     )
     .digest("hex");
@@ -89,6 +94,11 @@ export async function hostingPreview(
 ): Promise<HostingPreview> {
   const remote = await hostingStatus(connection, project, request);
   assertSeparateChapter(remote);
+  const impact = await hostingImpact(
+    project,
+    actorContext.getStore() || undefined,
+  );
+  remote.dependencyDigest = impact.digest;
   const expires = Date.now() + 5 * 60000;
   return {
     id: remote.id,
@@ -100,6 +110,7 @@ export async function hostingPreview(
       "Source snapshots and notes stay in Chapter. Vercel settings and domain ownership are retained.",
       "Database, domain renewals, APIs, storage and subscription charges are not cancelled. No savings are claimed.",
     ],
+    affected: impact.detail,
     expires,
     confirmation: signature(connection, remote, expires, target),
   };
@@ -117,6 +128,9 @@ export async function changeHosting(
 ) {
   const remote = await hostingStatus(connection, project, request);
   assertSeparateChapter(remote);
+  remote.dependencyDigest = (
+    await hostingImpact(project, actorContext.getStore() || undefined)
+  ).digest;
   const expected = signature(connection, remote, input.expires, input.target);
   if (
     input.name !== remote.name ||

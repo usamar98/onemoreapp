@@ -771,6 +771,7 @@ export function DetailsPanel({
   onLifecycle,
   onKnowledge,
   onLaunch,
+  onPreserve,
   onSaved,
 }: {
   project: Project;
@@ -781,6 +782,7 @@ export function DetailsPanel({
   onLifecycle: () => void;
   onKnowledge: () => void;
   onLaunch: () => void;
+  onPreserve: () => void;
 } & Props) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -875,6 +877,7 @@ export function DetailsPanel({
         <div className="detail-section">
           <Button onClick={onKnowledge}>Collaboration & records</Button>
           <Button onClick={onLaunch}>Reviews & automation</Button>
+          <Button onClick={onPreserve}>Preserve & rebuild</Button>
           {project.inactivityFlag ? (
             <Notice>
               Inactivity flagged{" "}

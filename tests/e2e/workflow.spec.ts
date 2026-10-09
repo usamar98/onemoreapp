@@ -259,6 +259,7 @@ test("complete private import → organize → share → park → resume experie
   await page.getByRole("button", { name: "Close panel" }).click();
   await page.locator(".account-row").click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
   await page.goto("/login");
   await page.getByLabel("Email address").fill(email);
   await page
@@ -278,7 +279,7 @@ test("complete private import → organize → share → park → resume experie
 test("dragging the priority queue persists its order and filters stay usable", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/demo");
   await page
     .getByRole("button", { name: "Try your own workspace", exact: true })
     .click();
@@ -306,7 +307,7 @@ test("dragging the priority queue persists its order and filters stay usable", a
   ).toBeFocused();
 });
 test("responsive demo dashboard and account login work", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/demo");
   await expect(
     page.getByRole("heading", { name: "Your projects." }),
   ).toBeVisible();

@@ -9,6 +9,18 @@ import { hostingStatus } from "./hosting";
 import { vercelRequest } from "./vercel";
 import type { Project, RevivalItem, RevivalReport } from "./types";
 import { AppError } from "./security";
+import { Writable } from "node:stream";
+export function boundedCommandLog(maximum = 16000) {
+  let text = "";
+  const sink = new Writable({
+    write(chunk, _encoding, done) {
+      if (text.length < maximum)
+        text += chunk.toString("utf8").slice(0, maximum - text.length);
+      done();
+    },
+  });
+  return { sink, text: () => text };
+}
 export function sandboxAvailable() {
   return (
     !!process.env.VERCEL_OIDC_TOKEN ||
@@ -22,6 +34,11 @@ export function sandboxAvailable() {
 export async function isolatedBuild(
   source: Buffer,
   create = Sandbox.create,
+  evidence?: {
+    maximum: number;
+    record: (stage: string, exitCode: number | null, output: string) => void;
+    artifact: (sandbox: Sandbox) => Promise<void>;
+  },
 ): Promise<RevivalItem> {
   const result = (
     status: RevivalItem["status"],
@@ -34,7 +51,10 @@ export async function isolatedBuild(
       "Vercel Sandbox is not configured. No project code was executed.",
       "Configure Vercel OIDC or VERCEL_TOKEN, VERCEL_TEAM_ID and VERCEL_PROJECT_ID on the server, then run the optional isolated build.",
     );
-  const zip = await JSZip.loadAsync((await inspectZip(source)).source);
+  const zip = await JSZip.loadAsync(
+    (await inspectZip(source, [], evidence?.maximum || 100 * 1024 * 1024))
+      .source,
+  );
   const packageFile = zip.file("package.json"),
     lock = zip.file("package-lock.json");
   if (!packageFile || !lock)
@@ -76,7 +96,7 @@ export async function isolatedBuild(
       persistent: false,
       timeout: 180000,
       networkPolicy: { allow: ["registry.npmjs.org"] },
-      resources: { vcpus: 2 },
+      resources: { vcpus: evidence ? 1 : 2 },
     });
     await sandbox.writeFiles(
       await Promise.all(
@@ -88,11 +108,35 @@ export async function isolatedBuild(
           })),
       ),
     );
+    if (evidence) {
+      const runtime = await sandbox.runCommand({
+        cmd: "node",
+        args: ["--version"],
+        cwd: "/vercel/sandbox",
+      });
+      evidence.record("Runtime", runtime.exitCode, await runtime.stdout());
+    }
+    const installLog = boundedCommandLog();
     const install = await sandbox.runCommand({
       cmd: "npm",
       args: ["ci", "--ignore-scripts", "--no-audit", "--no-fund"],
       cwd: "/vercel/sandbox",
+      ...(evidence
+        ? {
+            env: {
+              NPM_CONFIG_ENGINE_STRICT: "true",
+              NODE_OPTIONS: "--max-old-space-size=1536",
+            },
+          }
+        : {}),
+      ...(evidence ? { stdout: installLog.sink, stderr: installLog.sink } : {}),
     });
+    if (evidence)
+      evidence.record(
+        "Dependency installation",
+        install.exitCode,
+        installLog.text(),
+      );
     if (install.exitCode !== 0)
       return result(
         "Needs Attention",
@@ -100,12 +144,20 @@ export async function isolatedBuild(
         "Check the lockfile and npm dependencies. Only registry.npmjs.org is allowed; install scripts and private registry credentials are excluded.",
       );
     await sandbox.updateNetworkPolicy("deny-all");
+    const buildLog = boundedCommandLog();
     const build = await sandbox.runCommand({
       cmd: "npm",
       args: ["run", "build"],
       cwd: "/vercel/sandbox",
-      env: { CI: "true" },
+      env: evidence
+        ? { CI: "true", NODE_OPTIONS: "--max-old-space-size=1536" }
+        : { CI: "true" },
+      ...(evidence ? { stdout: buildLog.sink, stderr: buildLog.sink } : {}),
     });
+    if (evidence) {
+      evidence.record("Build", build.exitCode, buildLog.text());
+      if (build.exitCode === 0) await evidence.artifact(sandbox);
+    }
     return build.exitCode === 0
       ? result(
           "Passed",
@@ -269,6 +321,7 @@ export async function revivalCheck(
         await inspectZip(
           await uploadBytes(project.sourceId, owner),
           await accountSecrets(owner),
+          100 * 1024 * 1024,
         )
       ).source;
     } catch {

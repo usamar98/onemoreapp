@@ -5,7 +5,7 @@ test("Vercel connection settings and missing account instructions are clear", as
 }) => {
   const started = await page.request.post("/api/auth/demo");
   expect(started.ok()).toBeTruthy();
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: /Integrations/ }).click();
   await expect(
     page.getByRole("heading", { name: "Vercel", exact: true }),

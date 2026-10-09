@@ -336,6 +336,11 @@ export async function storeUpload(
         data.length,
       );
   } catch (error) {
+    // A lost database response can follow a committed INSERT. Never delete its file.
+    const saved = await db()
+      .prepare("SELECT id FROM uploads WHERE id=? AND owner=?")
+      .get(id, owner);
+    if (saved) return id;
     await release(owner, "storage", data.length);
     if (objectName) {
       try {
@@ -352,7 +357,13 @@ export async function uploadBytes(id: string, owner: string) {
     .get(id, owner);
   if (!row) throw new AppError("The file is missing. Upload it again.", 404);
   return row.object_name
-    ? readObject(String(row.object_name))
+    ? readObject(
+        String(row.object_name),
+        Math.max(
+          20 * 1024 * 1024,
+          Math.min(Number(row.size) || 0, 100 * 1024 * 1024),
+        ),
+      )
     : Buffer.from(row.data as Uint8Array);
 }
 export async function reorderProjects(ids: string[], owner: string) {

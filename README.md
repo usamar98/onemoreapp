@@ -1,5 +1,7 @@
 # Chapter
 
+The public homepage is at `/`; authenticated project work is at `/dashboard`. See [LANDING_PAGE.md](./LANDING_PAGE.md) for public-site features, truthful pricing, SEO, and production configuration.
+
 Keep every project ready for its next chapter.
 
 A focused, responsive SaaS MVP for importing, organizing, sharing, parking, and resuming developer projects. Built with Next.js App Router, React, and TypeScript. Local use stores data in SQLite; Vercel uses Supabase PostgreSQL and private object storage.
@@ -79,4 +81,8 @@ Open **Launch & automation** for guided bulk discovery/import, read-only project
 
 # Phase Five
 
-Open **Continue & learn** for guided resume sessions, project-scoped developer capture and the standalone CLI, editable grounded action proposals, an attention inbox, private feedback with restricted administration, and aggregate usage insights. Read [PHASE_FIVE.md](./PHASE_FIVE.md) for CLI/API setup, token scope and revocation, confirmed memory updates, analytics definitions, admin configuration and honest integration limits. Cloud setup now uses 41 private tables; reapply `cloud/schema.sql` before upgrading. Private captured files and continuation history are included in export/recovery.
+Open **Continue & learn** for guided resume sessions, project-scoped developer capture and the standalone CLI, editable grounded action proposals, an attention inbox, private feedback with restricted administration, and aggregate usage insights. Read [PHASE_FIVE.md](./PHASE_FIVE.md) for CLI/API setup, token scope and revocation, confirmed memory updates, analytics definitions, admin configuration and honest integration limits. Private captured files and continuation history are included in export/recovery.
+
+# Phase Six
+
+Open **Preserve & rebuild** for reviewed versioned preservation bundles, isolated npm build verification, independent static recreation on Vercel, resumable source uploads, expiring package downloads and documented shared-service dependencies. Read [PHASE_SIX.md](./PHASE_SIX.md) for configuration, supported builds, integrity checks, privacy, retention and remaining limits. Phase Six source transfers support 100 MiB ZIPs; the existing simple uploader and portable workspace backup retain their documented limits. Cloud setup now uses 50 private tables; reapply `cloud/schema.sql` and run `npm run cloud:check` before upgrading. Live build and recreation checks need configured provider accounts.

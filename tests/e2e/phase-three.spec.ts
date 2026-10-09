@@ -436,7 +436,7 @@ test("team permissions, private memory, reviewed starter, version restore, notif
         })
       ).status(),
     ).toBe(503);
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page
     .getByRole("button", { name: "Project memory", exact: true })
     .click();

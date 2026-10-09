@@ -73,7 +73,7 @@ export async function memorySources(
           at: Object.hasOwn(p.memory || {}, label)
             ? p.memory?.savedAt || p.updatedAt
             : p.updatedAt,
-          url: `/?project=${p.id}`,
+          url: `/dashboard?project=${p.id}`,
         });
     for (const fileId of [
       ...new Set(

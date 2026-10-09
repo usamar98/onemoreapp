@@ -143,7 +143,7 @@ test("cloud schema and runtime SQL work in PostgreSQL; browser roles cannot read
     const tables = await pg.query<{ secured: boolean }>(
       "select relrowsecurity as secured from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='chapter' and c.relkind='r'",
     );
-    assert.equal(tables.rows.length, 41);
+    assert.equal(tables.rows.length, 50);
     assert.ok(tables.rows.every((r) => r.secured));
     assert.equal(
       (

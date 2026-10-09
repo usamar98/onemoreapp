@@ -7,7 +7,9 @@ import type { Project } from "./types";
 import { taskFor } from "./planning";
 import { referencedEnvNames } from "./env-names";
 export async function sourceEnvNames(source: Buffer) {
-  const zip = await JSZip.loadAsync((await inspectZip(source)).source);
+  const zip = await JSZip.loadAsync(
+    (await inspectZip(source, [], 100 * 1024 * 1024)).source,
+  );
   const names = new Set<string>();
   for (const entry of Object.values(zip.files).filter(
     (f) =>
@@ -35,6 +37,12 @@ const privatePaths =
 export function transferablePath(name: string) {
   if (privatePaths.test(name) || name.split("/").some((p) => p.startsWith(".")))
     return false;
+  if (
+    /(^|\/)(?:yarn\.lock|bun\.lock|Cargo\.lock|poetry\.lock|Pipfile\.lock|Gemfile\.lock|composer\.lock)$/i.test(
+      name,
+    )
+  )
+    return true;
   if (/\.json$/i.test(name))
     return /(^|\/)(?:package(?:-lock)?|tsconfig[^/]*|jsconfig|vercel|[^/]+\.config)\.json$/i.test(
       name,
@@ -62,7 +70,7 @@ export async function prepareHandover(
     excluded: string[] = [];
   if (source) {
     const zip = await JSZip.loadAsync(
-      (await inspectZip(source, secrets)).source,
+      (await inspectZip(source, secrets, 100 * 1024 * 1024)).source,
     );
     for (const entry of Object.values(zip.files).filter((f) => !f.dir)) {
       if (

@@ -256,6 +256,8 @@ export async function restoreLocalBackup(
     if (has("public_portfolios"))
       database.exec("UPDATE public_portfolios SET published=0");
     if (has("review_links")) database.exec("UPDATE review_links SET revoked=1");
+    if (has("package_links")) database.exec("UPDATE package_links SET revoked=1");
+    if (has("transfer_uploads")) database.exec("UPDATE transfer_uploads SET lease=0,expires=0 WHERE state!='completed'");
     if (has("projects"))
       for (const row of database
         .prepare("SELECT id,data FROM projects")

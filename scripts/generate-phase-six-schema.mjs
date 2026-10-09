@@ -1,0 +1,10 @@
+import {readFileSync,writeFileSync} from "node:fs";
+const source=readFileSync("src/lib/phase-six-schema.ts","utf8"),tick=String.fromCharCode(96);
+const schema=source.slice(source.indexOf(tick)+1,source.lastIndexOf(tick));
+const tables=["preservation_bundles","bundle_checks","project_recreations","transfer_uploads","transfer_chunks","package_links","package_transfers","shared_services","service_dependencies"];
+const cloud=schema.replace(/\bBLOB\b/g,"BYTEA").replace(new RegExp("\\b("+[...tables,"users","projects","uploads"].join("|")+")\\b","g"),"chapter.$1");
+let file=readFileSync("cloud/schema.sql","utf8");
+if(!file.includes("CREATE TABLE IF NOT EXISTS chapter.preservation_bundles"))file=file.replace("revoke all on all tables in schema chapter",cloud+"\n"+tables.map(t=>"alter table chapter."+t+" enable row level security;").join("\n")+"\nrevoke all on all tables in schema chapter");
+else file=file.replace(/CREATE TABLE IF NOT EXISTS chapter\.preservation_bundles[\s\S]*?CREATE INDEX IF NOT EXISTS transfer_expiry_idx[^\n]*\n/,cloud+"\n");
+file=file.replaceAll("file_size_limit=20971520","file_size_limit=104857600").replace("false,20971520)","false,104857600)");
+writeFileSync("cloud/schema.sql",file);

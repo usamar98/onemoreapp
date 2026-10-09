@@ -18,16 +18,23 @@ import { executeRule, schedulePhaseFour } from "./automation";
 import { createBackup } from "./recovery";
 import { generateProposal } from "./action-proposals";
 import { AIServiceError } from "./openai-errors";
+import { verifyBundle } from "./bundle-build";
+import { runRecreation } from "./recreation";
+import { expireTransfers } from "./file-transfers";
+import { expireBundles } from "./preservation";
 export async function enqueue(
   actor: string,
   owner: string,
   kind: string,
   payload: unknown,
+  identity?: string,
 ) {
-  const id = randomUUID(),
+  const id = identity || randomUUID(),
     at = new Date().toISOString();
   await db()
-    .prepare("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .prepare(
+      "INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
+    )
     .run(
       id,
       actor,
@@ -47,17 +54,26 @@ export async function enqueue(
 }
 export async function runJob(id: string) {
   const now = Date.now();
+  const lease = now + 300000;
   const row = await db()
     .prepare(
       "UPDATE jobs SET state='running',attempts=attempts+1,lease=?,updated_at=? WHERE id=? AND attempts<3 AND ((state='queued' AND next_run<=?) OR (state='running' AND lease<?)) RETURNING *",
     )
-    .get(now + 180000, new Date().toISOString(), id, now, now);
+    .get(lease, new Date().toISOString(), id, now, now);
   if (!row) return;
   try {
     await workspaceRole(String(row.owner), String(row.actor));
     const input = JSON.parse(String(row.payload));
     let result: unknown;
-    if (row.kind === "proposal") {
+    if (row.kind === "bundle-build") {
+      result = await verifyBundle(
+        String(row.actor),
+        input.bundleId,
+        input.checkId,
+      );
+    } else if (row.kind === "recreation") {
+      result = await runRecreation(String(row.actor), input.recreationId);
+    } else if (row.kind === "proposal") {
       result = await generateProposal(
         String(row.actor),
         input.projectId,
@@ -154,7 +170,7 @@ export async function runJob(id: string) {
       .prepare(
         "UPDATE jobs SET state='succeeded',result=?,error=null,lease=0,updated_at=? WHERE id=? AND lease=?",
       )
-      .run(JSON.stringify(result), new Date().toISOString(), id, now + 180000);
+      .run(JSON.stringify(result), new Date().toISOString(), id, lease);
   } catch (error) {
     const terminal =
       Number(row.attempts) >= 3 ||
@@ -172,6 +188,14 @@ export async function runJob(id: string) {
         )
         .run(terminal ? "failed" : "queued", message, input.runId);
     }
+    if (row.kind === "bundle-build" && terminal) {
+      const input = JSON.parse(String(row.payload));
+      await db()
+        .prepare(
+          "UPDATE bundle_checks SET state='failed' WHERE id=? AND state='queued'",
+        )
+        .run(input.checkId);
+    }
     await db()
       .prepare(
         "UPDATE jobs SET state=?,error=?,next_run=?,lease=0,updated_at=? WHERE id=? AND lease=?",
@@ -186,12 +210,14 @@ export async function runJob(id: string) {
           ),
         new Date().toISOString(),
         id,
-        now + 180000,
+        lease,
       );
   }
 }
 export async function runPending(actor?: string, budgetMs = 180000) {
   const started = Date.now();
+  await expireTransfers();
+  await expireBundles();
   await schedulePhaseFour(actor);
   const expiredUploads = await db()
     .prepare(

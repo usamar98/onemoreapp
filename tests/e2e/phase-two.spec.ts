@@ -15,7 +15,7 @@ test("park → collect real interest → check readiness → reviewed handover �
     },
   });
   expect(registration.ok()).toBeTruthy();
-  await page.goto("/");
+  await page.goto("/dashboard");
   const zip = new JSZip();
   zip.file("index.html", "<!doctype html><h1>Chapter Phase Two</h1>");
   zip.file(

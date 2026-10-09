@@ -58,7 +58,7 @@ test("launch onboarding, reviewed automation, version feedback, opt-in portfolio
       })
     ).ok(),
   ).toBeTruthy();
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page
     .getByRole("button", { name: "Launch & automation", exact: true })
     .click();
@@ -250,6 +250,10 @@ test("launch onboarding, reviewed automation, version feedback, opt-in portfolio
     .click();
   const portfolioPage = await guest.newPage();
   await portfolioPage.goto("/portfolio/garden-" + stamp);
+  const publicSitemap = await (await guest.request.get("/sitemap.xml")).text();
+  expect(publicSitemap).toContain("/portfolio/garden-" + stamp + "</loc>");
+  expect(publicSitemap).not.toContain("/review/" + reviewId);
+  expect(publicSitemap).not.toMatch(/<loc>[^<]*\/dashboard/);
   await expect(
     portfolioPage.getByRole("heading", { name: "Launch Owner’s Garden" }),
   ).toBeVisible();
@@ -429,6 +433,9 @@ test("launch onboarding, reviewed automation, version feedback, opt-in portfolio
     404,
   );
   await page.request.delete("/api/showcase-settings");
+  expect(await (await guest.request.get("/sitemap.xml")).text()).not.toContain(
+    "/portfolio/garden-" + stamp + "</loc>",
+  );
   expect(
     (await guest.request.get("/api/showcase/garden-" + stamp)).status(),
   ).toBe(404);

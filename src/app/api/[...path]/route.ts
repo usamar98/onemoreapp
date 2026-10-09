@@ -54,6 +54,7 @@ import { phaseTwoRoute } from "@/lib/phase-two-api";
 import { phaseThreeRoute, workspaceData } from "@/lib/phase-three-api";
 import { phaseFourRoute } from "@/lib/phase-four-api";
 import { phaseFiveRoute, developerRoute } from "@/lib/phase-five-api";
+import { phaseSixRoute } from "@/lib/phase-six-api";
 import { trackOutcome } from "@/lib/product-tracking";
 import { connectionResult } from "@/lib/connections";
 import { workspaceAdmin } from "@/lib/access";
@@ -168,6 +169,8 @@ async function route(request: Request, parts: string[]) {
   if (section === "developer") return (await developerRoute(request, parts))!;
   if (method !== "GET" && !(section === "billing" && id === "webhook"))
     checkOrigin(request);
+  const phaseSix = await phaseSixRoute(request, parts);
+  if (phaseSix) return phaseSix;
   const phaseFive = await phaseFiveRoute(request, parts);
   if (phaseFive) return phaseFive;
   const phaseFour = await phaseFourRoute(request, parts);
@@ -942,4 +945,4 @@ async function handle(
     );
   }
 }
-export { handle as GET, handle as POST, handle as PATCH, handle as DELETE };
+export { handle as GET, handle as POST, handle as PATCH, handle as DELETE, handle as PUT };

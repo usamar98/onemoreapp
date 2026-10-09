@@ -3,11 +3,13 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
+import "@fontsource/dm-serif-display/400.css";
 import "./globals.css";
+import { siteOrigin, siteDescription } from "@/lib/site";
 export const metadata: Metadata = {
+  metadataBase: new URL(siteOrigin()),
   title: "Chapter · A home for every project",
-  description:
-    "Keep every project ready for its next chapter. Import, organize, share, park with memory, and resume.",
+  description: siteDescription,
 };
 export default function RootLayout({
   children,

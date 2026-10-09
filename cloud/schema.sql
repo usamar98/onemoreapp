@@ -117,10 +117,39 @@ alter table chapter.attention_states enable row level security;
 alter table chapter.product_feedback enable row level security;
 alter table chapter.feedback_updates enable row level security;
 alter table chapter.product_events enable row level security;
+
+
+
+CREATE TABLE IF NOT EXISTS chapter.preservation_bundles(id TEXT PRIMARY KEY, project_id TEXT REFERENCES chapter.projects(id), owner TEXT REFERENCES chapter.users(id), upload_id TEXT REFERENCES chapter.uploads(id), digest TEXT NOT NULL, data TEXT NOT NULL, at TEXT NOT NULL, expires BIGINT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS chapter.bundle_checks(id TEXT PRIMARY KEY, bundle_id TEXT REFERENCES chapter.preservation_bundles(id), actor TEXT REFERENCES chapter.users(id), state TEXT NOT NULL, data TEXT NOT NULL, at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS chapter.project_recreations(id TEXT PRIMARY KEY, bundle_id TEXT REFERENCES chapter.preservation_bundles(id), actor TEXT REFERENCES chapter.users(id), project_id TEXT REFERENCES chapter.projects(id), state TEXT NOT NULL, data TEXT NOT NULL, at TEXT NOT NULL, lease BIGINT NOT NULL DEFAULT 0);
+CREATE UNIQUE INDEX IF NOT EXISTS recreation_bundle_idx ON chapter.project_recreations(bundle_id) WHERE state NOT IN ('canceled');
+CREATE TABLE IF NOT EXISTS chapter.transfer_uploads(id TEXT PRIMARY KEY, owner TEXT REFERENCES chapter.users(id), actor TEXT REFERENCES chapter.users(id), project_id TEXT REFERENCES chapter.projects(id), name TEXT NOT NULL, size BIGINT NOT NULL, reserved BIGINT NOT NULL, digest TEXT NOT NULL, state TEXT NOT NULL, upload_id TEXT, lease BIGINT NOT NULL, expires BIGINT NOT NULL, at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS chapter.transfer_chunks(upload_id TEXT REFERENCES chapter.transfer_uploads(id), part INTEGER NOT NULL, digest TEXT NOT NULL, size BIGINT NOT NULL, data BYTEA, object_name TEXT, PRIMARY KEY(upload_id,part));
+CREATE TABLE IF NOT EXISTS chapter.package_links(id TEXT PRIMARY KEY, bundle_id TEXT REFERENCES chapter.preservation_bundles(id), actor TEXT REFERENCES chapter.users(id), token_hash TEXT UNIQUE NOT NULL, expires BIGINT NOT NULL, revoked INTEGER NOT NULL, downloads INTEGER NOT NULL, visits INTEGER NOT NULL, at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS chapter.package_transfers(id TEXT PRIMARY KEY, link_id TEXT REFERENCES chapter.package_links(id), state TEXT NOT NULL, data TEXT NOT NULL, at TEXT NOT NULL, finished_at TEXT);
+CREATE TABLE IF NOT EXISTS chapter.shared_services(id TEXT PRIMARY KEY, owner TEXT REFERENCES chapter.users(id), name TEXT NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL, at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS chapter.service_dependencies(service_id TEXT REFERENCES chapter.shared_services(id), project_id TEXT REFERENCES chapter.projects(id), origin TEXT NOT NULL, evidence TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY(service_id,project_id));
+CREATE INDEX IF NOT EXISTS bundles_project_idx ON chapter.preservation_bundles(project_id,at);
+CREATE UNIQUE INDEX IF NOT EXISTS bundle_digest_idx ON chapter.preservation_bundles(project_id,digest) WHERE deleted=0;
+CREATE UNIQUE INDEX IF NOT EXISTS bundle_check_active_idx ON chapter.bundle_checks(bundle_id) WHERE state='queued';
+CREATE INDEX IF NOT EXISTS transfer_expiry_idx ON chapter.transfer_uploads(state,expires);
+
+
+
+alter table chapter.preservation_bundles enable row level security;
+alter table chapter.bundle_checks enable row level security;
+alter table chapter.project_recreations enable row level security;
+alter table chapter.transfer_uploads enable row level security;
+alter table chapter.transfer_chunks enable row level security;
+alter table chapter.package_links enable row level security;
+alter table chapter.package_transfers enable row level security;
+alter table chapter.shared_services enable row level security;
+alter table chapter.service_dependencies enable row level security;
 revoke all on all tables in schema chapter from public, anon, authenticated;
 alter default privileges in schema chapter revoke all on tables from public, anon, authenticated;
 -- No public Storage policies. Only the server secret can sign specific uploads/downloads.
 insert into storage.buckets(id,name,public,file_size_limit)
-values('chapter-files','chapter-files',false,20971520)
-on conflict(id) do update set public=false,file_size_limit=20971520;
+values('chapter-files','chapter-files',false,104857600)
+on conflict(id) do update set public=false,file_size_limit=104857600;
 commit;

@@ -21,6 +21,7 @@ import { usageStep, release } from "./billing";
 import { writeObject, readObject, removeObject } from "./storage";
 import { statuses, type Project } from "./types";
 import { progressSchema } from "./continuation";
+import { inspectPreservationPackage } from "./preservation";
 export const EXPORT_LIMIT = 18 * 1024 * 1024;
 export async function recoveryTicket(actor: string, owner: string, id: string) {
   const access = await workspaceRole(owner, actor);
@@ -113,7 +114,13 @@ export async function buildExport(
       .all(id, owner);
     for (const u of uploads) {
       let bytes: Buffer = await uploadBytes(String(u.id), owner);
-      if (["source", "build", "handover", "capture"].includes(String(u.kind)))
+      if (u.kind === "preservation")
+        bytes = await inspectPreservationPackage(bytes, secrets);
+      else if (
+        ["source", "build", "handover", "capture", "verified-build"].includes(
+          String(u.kind),
+        )
+      )
         bytes = (await inspectZip(bytes, secrets)).source;
       else if (u.kind === "screenshot") screenshotType(bytes);
       else {
@@ -205,6 +212,37 @@ export async function buildExport(
       const d = JSON.parse(String(r.data));
       return { kind: r.kind, state: r.state, text: d.text || "", at: r.at };
     });
+    const preservationRecords = (
+      await db()
+        .prepare(
+          "SELECT id,upload_id,digest,data,at,expires FROM preservation_bundles WHERE project_id=? AND deleted=0",
+        )
+        .all(id)
+    ).map((b) => ({
+      id: String(b.id),
+      uploadId: String(b.upload_id),
+      digest: String(b.digest),
+      data: JSON.parse(String(b.data)),
+      at: String(b.at),
+      expires: Number(b.expires),
+    }));
+    const preservationChecks = (
+      await db()
+        .prepare(
+          "SELECT c.id,c.bundle_id,c.state,c.data,c.at FROM bundle_checks c JOIN preservation_bundles b ON b.id=c.bundle_id WHERE b.project_id=? AND b.deleted=0 AND c.state='completed'",
+        )
+        .all(id)
+    ).map((c) => ({
+      id: String(c.id),
+      bundleId: String(c.bundle_id),
+      data: JSON.parse(String(c.data)),
+      at: String(c.at),
+    }));
+    const serviceRecords = await db()
+      .prepare(
+        "SELECT s.name,s.kind,s.data,d.origin,d.evidence,d.at FROM shared_services s JOIN service_dependencies d ON d.service_id=s.id WHERE d.project_id=?",
+      )
+      .all(id);
     records.push(
       safeTextTree(
         {
@@ -220,6 +258,9 @@ export async function buildExport(
           parkingRecords,
           sessionHistory,
           proposalHistory,
+          preservationRecords,
+          preservationChecks,
+          serviceRecords,
           comments,
           activity,
           interest,
@@ -459,6 +500,47 @@ const archiveSchema = z.object({
           )
           .max(1000)
           .default([]),
+        preservationRecords: z
+          .array(
+            z.object({
+              id: z.string().max(100),
+              uploadId: z.string().max(100),
+              digest: z.string().regex(/^[a-f0-9]{64}$/),
+              data: z
+                .record(z.string(), z.unknown())
+                .refine((d) => JSON.stringify(d).length < 500000),
+              at: z.string().max(100),
+              expires: z.number(),
+            }),
+          )
+          .max(1000)
+          .default([]),
+        preservationChecks: z
+          .array(
+            z.object({
+              id: z.string().max(100),
+              bundleId: z.string().max(100),
+              data: z
+                .record(z.string(), z.unknown())
+                .refine((d) => JSON.stringify(d).length < 500000),
+              at: z.string().max(100),
+            }),
+          )
+          .max(1000)
+          .default([]),
+        serviceRecords: z
+          .array(
+            z.object({
+              name: z.string().max(100),
+              kind: z.string().max(40),
+              data: z.string().max(5000),
+              origin: z.string().max(20),
+              evidence: z.string().max(4000),
+              at: z.string().max(100),
+            }),
+          )
+          .max(1000)
+          .default([]),
         parkingRecords: z
           .array(
             z.object({
@@ -491,7 +573,15 @@ const archiveSchema = z.object({
         id: z.string().regex(/^[\w-]{1,100}$/),
         projectId: z.string().max(100),
         name: z.string().max(240),
-        kind: z.enum(["source", "build", "handover", "screenshot", "capture"]),
+        kind: z.enum([
+          "source",
+          "build",
+          "handover",
+          "screenshot",
+          "capture",
+          "preservation",
+          "verified-build",
+        ]),
         type: z.string().max(80),
         bytes: z.number().int().min(0).max(MAX_UPLOAD),
         sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -549,7 +639,9 @@ export async function readExport(bytes: Buffer, secrets: string[] = []) {
     total += data.length;
     if (data.length !== f.bytes || checksum(data) !== f.sha256)
       throw new AppError("File checksum mismatch. Recovery was not started.");
-    if (f.kind === "screenshot") {
+    if (f.kind === "preservation") {
+      await inspectPreservationPackage(data, secrets);
+    } else if (f.kind === "screenshot") {
       f.type = screenshotType(data);
       if (data.length > 5 * 1024 * 1024)
         throw new AppError("Recovered screenshot exceeds 5 MB.");
@@ -565,6 +657,18 @@ export async function readExport(bytes: Buffer, secrets: string[] = []) {
         .filter((f) => f.projectId === p.project.id)
         .map((f) => f.id),
     );
+    for (const b of p.preservationRecords) {
+      const file = manifest.files.find(
+        (f) =>
+          f.id === b.uploadId &&
+          f.projectId === p.project.id &&
+          f.kind === "preservation",
+      );
+      if (!file || checksum(fileData.get(file.id)!) !== b.data.packageSha256)
+        throw new AppError(
+          "Preservation bundle is missing or its package checksum changed.",
+        );
+    }
     for (const u of p.project.progressUpdates)
       if (u.fileId && !own.has(u.fileId))
         throw new AppError(
@@ -833,6 +937,84 @@ export async function restoreExport(
           proposal.at,
         ],
       });
+    const bundleMap = new Map<string, string>();
+    for (const b of item.preservationRecords) {
+      const id = randomUUID();
+      bundleMap.set(b.id, id);
+      steps.push({
+        sql: "INSERT INTO preservation_bundles VALUES(?,?,?,?,?,?,?,?,0)",
+        parameters: [
+          id,
+          p.id,
+          owner,
+          fileMap.get(b.uploadId)!,
+          b.digest,
+          JSON.stringify(b.data),
+          b.at,
+          0,
+        ],
+      });
+    }
+    for (const c of item.preservationChecks) {
+      const bundleId = bundleMap.get(c.bundleId);
+      if (!bundleId)
+        throw new AppError("Build check references a missing bundle.");
+      const data = mapReferences(c.data) as Record<string, unknown>;
+      data.bundleId = bundleId;
+      data.artifactId = fileMap.get(String(c.data.artifactId)) || "";
+      data.buildVerified = false;
+      data.functionalityVerified = false;
+      data.result = {
+        name: "Isolated build",
+        status: "Not Checked",
+        detail:
+          "Recovered historical evidence from an unsigned export. Run a new isolated verification before recreating this package.",
+        nextStep: "Verify Build for the recovered immutable package.",
+      };
+      delete data.jobId;
+      steps.push({
+        sql: "INSERT INTO bundle_checks VALUES(?,?,?,?,?,?)",
+        parameters: [
+          randomUUID(),
+          bundleId,
+          actor,
+          "completed",
+          JSON.stringify(data),
+          c.at,
+        ],
+      });
+    }
+    for (const s of item.serviceRecords) {
+      const id = randomUUID();
+      steps.push(
+        {
+          sql: "INSERT INTO shared_services VALUES(?,?,?,?,?,?)",
+          parameters: [
+            id,
+            owner,
+            s.name,
+            s.kind,
+            JSON.stringify({
+              notes: "Recovered relationship: " + s.evidence,
+              provider: "",
+              providerId: "",
+              teamId: "",
+            }),
+            at,
+          ],
+        },
+        {
+          sql: "INSERT INTO service_dependencies VALUES(?,?,?,?,?)",
+          parameters: [
+            id,
+            p.id,
+            "Unknown",
+            "Recovered documentation; provider relationship must be checked again.",
+            at,
+          ],
+        },
+      );
+    }
     for (const c of item.comments)
       steps.push({
         sql: "INSERT INTO comments VALUES(?,?,?,?,?)",
@@ -897,7 +1079,17 @@ export async function restoreExport(
     await transaction([
       await usageStep(owner, "projects", restored.length),
       await usageStep(owner, "storage", total),
-      ...steps,
+      ...steps.filter(
+        (step) =>
+          !/^INSERT INTO (preservation_bundles|bundle_checks|shared_services|service_dependencies)\b/.test(
+            step.sql,
+          ),
+      ),
+      ...steps.filter((step) =>
+        /^INSERT INTO (preservation_bundles|bundle_checks|shared_services|service_dependencies)\b/.test(
+          step.sql,
+        ),
+      ),
       {
         sql: "INSERT INTO recovery_runs VALUES(?,?,?,?,?,?)",
         parameters: [runId, owner, actor, digest, JSON.stringify(result), at],

@@ -128,7 +128,7 @@ test("development CLI capture, park, guided session, reviewed proposal, private 
       })
     ).ok(),
   ).toBeTruthy();
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page
     .getByRole("button", { name: "Continue & learn", exact: true })
     .click();
@@ -357,7 +357,7 @@ test("restricted platform administrators categorize feedback and publish updates
   });
   expect(login.ok()).toBeTruthy();
   const adminPage = await admin.newPage();
-  await adminPage.goto("/");
+  await adminPage.goto("/dashboard");
   await adminPage
     .getByRole("button", { name: "Continue & learn", exact: true })
     .click();

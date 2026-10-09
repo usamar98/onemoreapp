@@ -79,3 +79,42 @@ export async function removeObject(objectName: string) {
       503,
     );
 }
+export async function readObjectRange(
+  objectName: string,
+  start: number,
+  end: number,
+) {
+  const { data, error } = await privateStorage().createSignedUrl(
+    objectName,
+    60,
+  );
+  if (error || !data) throw new AppError("Package file is unavailable.", 404);
+  const response = await fetch(data.signedUrl, {
+    headers: { Range: `bytes=${start}-${end}` },
+    signal: AbortSignal.timeout(30000),
+    cache: "no-store",
+  });
+  if (response.status !== 206 || !response.body)
+    throw new AppError(
+      "Private storage did not support a bounded package download. Check Storage range support and retry.",
+      502,
+    );
+  const reader = response.body.getReader(),
+    parts: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if ((size += value.length) > end - start + 1) {
+      await reader.cancel();
+      throw new AppError("The package range exceeded its expected size.", 409);
+    }
+    parts.push(value);
+  }
+  if (size !== end - start + 1)
+    throw new AppError(
+      "The package range was interrupted. Retry this part.",
+      502,
+    );
+  return Buffer.concat(parts);
+}

@@ -426,7 +426,7 @@ export async function phaseThreeRoute(
       await record(id, `Invited a ${input.role} collaborator`, "team");
       return json({
         token,
-        link: `/?invite=${token}`,
+        link: `/dashboard?invite=${token}`,
         message:
           "Send this link yourself. The recipient must sign in with the invited email. It expires in seven days.",
       });
@@ -550,7 +550,7 @@ export async function phaseThreeRoute(
         url: (
           await client.billingPortal.sessions.create({
             customer: state.customer,
-            return_url: base,
+            return_url: `${base}/dashboard?billing=return`,
           })
         ).url,
       });
@@ -628,8 +628,8 @@ export async function phaseThreeRoute(
           client_reference_id: owner,
           metadata: { chapterOwner: owner, chapterPlan: plan },
           subscription_data: { metadata: { chapterOwner: owner } },
-          success_url: `${base}/?billing=return`,
-          cancel_url: `${base}/?billing=cancel`,
+          success_url: `${base}/dashboard?billing=return`,
+          cancel_url: `${base}/dashboard?billing=cancel`,
           allow_promotion_codes: true,
         },
         {
@@ -686,6 +686,23 @@ export async function phaseThreeRoute(
       .get(id, actor);
     if (!row) throw new AppError("Job not found.", 404);
     await workspaceRole(String(row.owner), actor);
+    if (
+      [
+        "bundle-build",
+        "recreation",
+        "deployment",
+        "sync",
+        "automation",
+        "proposal",
+      ].includes(String(row.kind))
+    )
+      await projectAccess(
+        JSON.parse(String(row.payload)).projectId,
+        actor,
+        ["bundle-build", "proposal"].includes(String(row.kind))
+          ? "edit"
+          : "control",
+      );
     if (method === "POST" && action === "retry") {
       if (row.state !== "failed")
         throw new AppError("Only failed jobs can be retried.", 409);
@@ -837,7 +854,7 @@ export async function phaseThreeRoute(
             Number(counts.find((r) => r.kind === k)?.count || 0),
           ]),
         ),
-        source: `/?project=${p.id}`,
+        source: `/dashboard?project=${p.id}`,
       });
     }
     return json({
