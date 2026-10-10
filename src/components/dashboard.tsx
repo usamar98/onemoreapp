@@ -60,6 +60,7 @@ import { LifecyclePanel } from "./lifecycle-panel";
 import { timeWindows, suggestions, taskFor } from "@/lib/planning";
 import dynamic from "next/dynamic";
 import { knowledgeTools, type KnowledgeTool } from "./knowledge-panels";
+import { AccountSecurity } from "./security-forms";
 const KnowledgePanel = dynamic(() =>
   import("./knowledge-panels").then((m) => m.KnowledgePanel),
 );
@@ -1318,6 +1319,7 @@ export function Dashboard({ initial }: { initial: Workspace }) {
           onClose={() => setPanel(null)}
           onSaved={saved}
           onIntegrations={() => setPanel({ kind: "integrations" })}
+          onReview={(p) => setPanel({ kind: "launch", project: p })}
         />
       ) : null}
       {selected && panel?.kind === "edit" ? (
@@ -1490,6 +1492,7 @@ export function Dashboard({ initial }: { initial: Workspace }) {
               <>
                 <h3>{workspace.user.name}</h3>
                 <p className="field-hint">{workspace.user.email}</p>
+                <AccountSecurity />
                 <Notice>
                   Your projects are stored privately in your account.
                 </Notice>

@@ -256,8 +256,18 @@ export async function restoreLocalBackup(
     if (has("public_portfolios"))
       database.exec("UPDATE public_portfolios SET published=0");
     if (has("review_links")) database.exec("UPDATE review_links SET revoked=1");
-    if (has("package_links")) database.exec("UPDATE package_links SET revoked=1");
-    if (has("transfer_uploads")) database.exec("UPDATE transfer_uploads SET lease=0,expires=0 WHERE state!='completed'");
+    if (has("review_grants")) database.exec("DELETE FROM review_grants");
+    if (has("auth_tokens")) database.exec("UPDATE auth_tokens SET consumed=1");
+    if (has("mail_deliveries"))
+      database.exec(
+        "UPDATE mail_deliveries SET state='expired',data='',lease=0,error='Operator recovery: request a new security link.'",
+      );
+    if (has("package_links"))
+      database.exec("UPDATE package_links SET revoked=1");
+    if (has("transfer_uploads"))
+      database.exec(
+        "UPDATE transfer_uploads SET lease=0,expires=0 WHERE state!='completed'",
+      );
     if (has("projects"))
       for (const row of database
         .prepare("SELECT id,data FROM projects")

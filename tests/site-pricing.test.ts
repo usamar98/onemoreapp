@@ -134,7 +134,7 @@ test("production SEO never points to localhost and account returns cannot escape
   try {
     delete process.env.NEXT_PUBLIC_SITE_URL;
     process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3000";
-    assert.equal(siteOrigin(), "https://onemoreapp.pro");
+    assert.equal(siteOrigin(), "https://onemoreapp-sandy.vercel.app");
     process.env.NEXT_PUBLIC_SITE_URL =
       "https://chapter.example.test/path?query=ignored";
     assert.equal(siteOrigin(), "https://chapter.example.test");

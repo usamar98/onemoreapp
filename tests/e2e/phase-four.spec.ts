@@ -128,6 +128,7 @@ test("launch onboarding, reviewed automation, version feedback, opt-in portfolio
     briefRules.find((item: { kind: string }) => item.kind === "brief").runs,
   ).toHaveLength(1);
   await page.getByRole("button", { name: "Review links", exact: true }).click();
+  await page.getByLabel("Client preview access").selectOption("link");
   await page.getByLabel("Include setup, notes and resume brief").check();
   await page.getByLabel("Allow demo viewing").check();
   await page.getByRole("button", { name: "Preview review contents" }).click();

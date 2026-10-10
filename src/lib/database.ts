@@ -7,6 +7,7 @@ import { phaseThreeSchema } from "./phase-three-schema";
 import { phaseFourSchema } from "./phase-four-schema";
 import { phaseFiveSchema } from "./phase-five-schema";
 import { phaseSixSchema } from "./phase-six-schema";
+import { secureSchema } from "./secure-schema";
 
 export type Row = Record<string, string | number | Uint8Array | null>;
 type Parameter = string | number | Uint8Array | null;
@@ -48,6 +49,7 @@ function local() {
   sqlite.exec(phaseFourSchema);
   sqlite.exec(phaseFiveSchema);
   sqlite.exec(phaseSixSchema);
+  sqlite.exec(secureSchema);
   if (
     !sqlite
       .prepare("PRAGMA table_info(uploads)")
@@ -75,6 +77,10 @@ export function postgresQuery(sql: string) {
   return sql
     .replace(
       /\b(users|sessions|projects|uploads|memories|integrations|activity|attempts|upload_tickets|interest|workspaces|members|invitations|comments|versions|templates|subscriptions|billing_events|usage_counters|notification_preferences|notifications|jobs|connection_state|import_batches|external_links|automation_rules|automation_runs|review_links|review_feedback|public_portfolios|backups|recovery_runs|support_requests|resume_sessions|developer_tokens|development_captures|action_proposals|attention_states|product_feedback|feedback_updates|product_events|preservation_bundles|bundle_checks|project_recreations|transfer_uploads|transfer_chunks|package_links|package_transfers|shared_services|service_dependencies)\b/g,
+      "chapter.$1",
+    )
+    .replace(
+      /\b(account_verifications|auth_tokens|mail_deliveries|review_access|review_grants)\b/g,
       "chapter.$1",
     )
     .replace(/\?/g, () => `$${++parameter}`);

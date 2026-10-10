@@ -140,6 +140,11 @@ export function AuthForm({
               <ArrowRight size={16} />
             </Button>
           </form>
+          {mode === "login" ? (
+            <Link href="/forgot-password" className="auth-recovery-link">
+              Forgot your password?
+            </Link>
+          ) : null}
           <div className="auth-divider">
             <span>or have a look around</span>
           </div>

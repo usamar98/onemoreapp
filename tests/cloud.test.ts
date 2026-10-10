@@ -143,7 +143,70 @@ test("cloud schema and runtime SQL work in PostgreSQL; browser roles cannot read
     const tables = await pg.query<{ secured: boolean }>(
       "select relrowsecurity as secured from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='chapter' and c.relkind='r'",
     );
-    assert.equal(tables.rows.length, 50);
+    await query("INSERT INTO auth_tokens VALUES(?,?,?,?,?,?,?,?)", [
+      "hash-only",
+      "owner",
+      "owner@example.test",
+      "verify",
+      "owner",
+      Date.now() + 60000,
+      0,
+      "2026-10-10",
+    ]);
+    assert.equal(
+      (
+        await query(
+          "UPDATE auth_tokens SET consumed=1 WHERE token=? AND consumed=0 AND expires>? RETURNING token",
+          ["hash-only", Date.now()],
+        )
+      ).rows.length,
+      1,
+    );
+    assert.equal(
+      (
+        await query(
+          "UPDATE auth_tokens SET consumed=1 WHERE token=? AND consumed=0 AND expires>? RETURNING token",
+          ["hash-only", Date.now()],
+        )
+      ).rows.length,
+      0,
+    );
+    await query(
+      "INSERT INTO account_verifications(user_id,email,verified_at) SELECT id,email,? FROM users WHERE id=? AND email=? ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,verified_at=excluded.verified_at RETURNING user_id",
+      ["2026-10-10", "owner", "owner@example.test"],
+    );
+    await query("INSERT INTO review_links VALUES(?,?,?,?,?,?,?,?)", [
+      "review",
+      "project",
+      "owner",
+      "owner",
+      "{}",
+      Date.now() + 60000,
+      0,
+      "2026-10-10",
+    ]);
+    await query("INSERT INTO review_access VALUES(?,?,?,?)", [
+      "review",
+      "password",
+      "salt:hash",
+      "[]",
+    ]);
+    await query("INSERT INTO review_grants VALUES(?,?,?,?)", [
+      "grant-hash",
+      "review",
+      "",
+      Date.now() + 60000,
+    ]);
+    assert.equal(
+      (
+        await query(
+          "SELECT email FROM review_grants WHERE token=? AND review_id=? AND expires>?",
+          ["grant-hash", "review", Date.now()],
+        )
+      ).rows.length,
+      1,
+    );
+    assert.equal(tables.rows.length, 55);
     assert.ok(tables.rows.every((r) => r.secured));
     assert.equal(
       (
@@ -154,6 +217,14 @@ test("cloud schema and runtime SQL work in PostgreSQL; browser roles cannot read
       false,
     );
     await pg.exec("set role anon");
+    await assert.rejects(
+      () => pg.query("SELECT * FROM chapter.auth_tokens"),
+      /permission denied/,
+    );
+    await assert.rejects(
+      () => pg.query("SELECT * FROM chapter.review_access"),
+      /permission denied/,
+    );
     await assert.rejects(
       () => pg.query("SELECT * FROM chapter.projects"),
       /permission denied/,

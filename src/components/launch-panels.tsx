@@ -1036,6 +1036,7 @@ type ReviewLink = {
   at: string;
   data: ReviewSnapshot;
   comments: { name: string; text: string; decision: string; at: string }[];
+  approval: string;
 };
 function PortfolioEditor({ projects }: { projects: Project[] }) {
   const r = useResource<{
@@ -1798,6 +1799,11 @@ function Reviews({
       screenshots: true,
       notes: false,
       days: 7,
+      access: "password",
+      password: "",
+      recipientEmails: [],
+      packagePreview: false,
+      documents: false,
     }),
     [preview, setPreview] = useState<ReviewSnapshot | null>(null),
     [confirmed, setConfirmed] = useState(false),
@@ -1816,11 +1822,11 @@ function Reviews({
   }
   return (
     <div className="launch-stack">
-      <h3>Feedback belongs to the version you shared.</h3>
+      <h3>A private preview, tied to a specific version.</h3>
       <p className="field-hint">
-        Create an expiring, revocable link to frozen records. Reviewers enter
-        their own name; possession of the link grants the selected permissions.
-        Approval is feedback, not a verified signature.
+        Choose who can open your captured version, then review its contents.
+        Expiry, revocation and download permissions apply to every new request.
+        Approval records feedback, not a verified signature.
       </p>
       <Feedback a={a} />
       <Loading r={links} />
@@ -1860,6 +1866,48 @@ function Reviews({
             the snapshot. The overview is captured now. A demo URL can change at
             its provider after the review is created.
           </Notice>
+          <div className="review-access-options">
+            <Field label="Client preview access">
+              <select
+                value={options.access || "link"}
+                onChange={(e) =>
+                  change({ access: e.target.value as ReviewOptions["access"] })
+                }
+              >
+                <option value="password">Password protected</option>
+                <option value="email">Invited email addresses</option>
+                <option value="link">Anyone with the link</option>
+              </select>
+            </Field>
+            {options.access === "password" ? (
+              <Field
+                label="Client preview password"
+                hint="Use 10 or more characters. Send the password separately from the link."
+              >
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={10}
+                  maxLength={128}
+                  value={options.password || ""}
+                  onChange={(e) => change({ password: e.target.value })}
+                />
+              </Field>
+            ) : null}
+            {options.access === "email" ? (
+              <Field
+                label="Invited recipients"
+                hint="One email per line, up to 20. Each recipient confirms a one-time email link."
+              >
+                <textarea
+                  value={(options.recipientEmails || []).join("\n")}
+                  onChange={(e) =>
+                    change({ recipientEmails: e.target.value.split("\n") })
+                  }
+                />
+              </Field>
+            ) : null}
+          </div>
           <div className="permission-grid">
             {(
               ["demo", "feedback", "source", "screenshots", "notes"] as const
@@ -1882,6 +1930,29 @@ function Reviews({
               </label>
             ))}
           </div>
+          {owners.find((p) => p.id === projectId)?.quickPublish && (
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={options.packagePreview || false}
+                onChange={(e) => change({ packagePreview: e.target.checked })}
+              />
+              Include saved static website layout (HTML or ZIP only)
+            </label>
+          )}
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={options.documents || false}
+              onChange={(e) => change({ documents: e.target.checked })}
+            />
+            Allow selected package PDF downloads
+          </label>
+          <Notice>
+            A public project page, portfolio or direct hosting URL keeps its own
+            access settings. This private review does not change them. Configure
+            Vercel deployment protection separately for a private live demo.
+          </Notice>
           <Field label="Link expiry (days)">
             <input
               type="number"
@@ -1901,7 +1972,12 @@ function Reviews({
                       await api<{ preview: ReviewSnapshot }>(
                         "projects/" + projectId + "/review-preview",
                         "POST",
-                        options,
+                        {
+                          ...options,
+                          recipientEmails: options.recipientEmails
+                            ?.map((e) => e.trim())
+                            .filter(Boolean),
+                        },
                       )
                     ).preview,
                   ),
@@ -1918,6 +1994,27 @@ function Reviews({
               <p>{preview.description}</p>
               <small>{preview.record}</small>
               <small>Version: {preview.version}</small>
+              <p>
+                Access: {preview.access?.mode || "link"}
+                {preview.access?.mode === "email"
+                  ? ` (${preview.access.recipientEmails.join(", ")})`
+                  : ""}
+              </p>
+              {preview.htmlPreview ? (
+                <iframe
+                  title="Client review layout preview"
+                  sandbox=""
+                  referrerPolicy="no-referrer"
+                  className="quick-preview-frame"
+                  srcDoc={preview.htmlPreview}
+                />
+              ) : null}
+              {preview.documents?.length ? (
+                <p>
+                  PDF downloads:{" "}
+                  {preview.documents.map((f) => f.name).join(", ")}
+                </p>
+              ) : null}
               <p>
                 Demo: {preview.demoUrl || "Private"} · Source:{" "}
                 {preview.sourceId
@@ -1956,9 +2053,19 @@ function Reviews({
                     const result = await api<{ url: string }>(
                       "projects/" + projectId + "/review-create",
                       "POST",
-                      { ...options, digest: preview.digest, confirmed: true },
+                      {
+                        ...options,
+                        recipientEmails: options.recipientEmails
+                          ?.map((e) => e.trim())
+                          .filter(Boolean),
+                        digest: preview.digest,
+                        confirmed: true,
+                      },
                     );
                     setUrl(result.url);
+                    setOptions((s) => ({ ...s, password: "" }));
+                    setPreview(null);
+                    setConfirmed(false);
                     links.reload();
                     onRefresh();
                   }, "Frozen review link created.")
@@ -1981,6 +2088,23 @@ function Reviews({
           No review links yet. Source stays private until explicitly included.
         </p>
       ) : null}
+      {links.data?.links.length ? (
+        <div className="review-overview" aria-label="Client review overview">
+          {["Pending", "Approved", "Changes Requested"].map((status) => (
+            <span key={status}>
+              {status}:{" "}
+              {
+                links.data!.links.filter(
+                  (l) =>
+                    !l.revoked &&
+                    l.expires > Date.now() &&
+                    l.approval === status,
+                ).length
+              }
+            </span>
+          ))}
+        </div>
+      ) : null}
       {links.data?.links.map((l) => (
         <section className="launch-card" key={l.id}>
           <h3>
@@ -1992,6 +2116,14 @@ function Reviews({
                 : "Active"}
           </h3>
           <small>{l.data.record}</small>
+          <p>
+            {l.data.access?.mode === "password"
+              ? "Password protected"
+              : l.data.access?.mode === "email"
+                ? "Invited email access"
+                : "Anyone with the link"}{" "}
+            · {l.approval || "Pending"}
+          </p>
           <small>Expires {new Date(l.expires).toLocaleString()}</small>
           {!l.revoked ? (
             <>

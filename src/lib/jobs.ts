@@ -22,6 +22,7 @@ import { verifyBundle } from "./bundle-build";
 import { runRecreation } from "./recreation";
 import { expireTransfers } from "./file-transfers";
 import { expireBundles } from "./preservation";
+import { deliverPendingMail } from "./transactional-email";
 export async function enqueue(
   actor: string,
   owner: string,
@@ -216,6 +217,7 @@ export async function runJob(id: string) {
 }
 export async function runPending(actor?: string, budgetMs = 180000) {
   const started = Date.now();
+  await deliverPendingMail();
   await expireTransfers();
   await expireBundles();
   await schedulePhaseFour(actor);

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { reviewData } from "@/lib/reviews";
+import { reviewData, reviewGate } from "@/lib/reviews";
 import { AppError } from "@/lib/security";
 import { Badge, Brand } from "@/components/ui";
 import { ExternalReview } from "@/components/external-review";
+import { ClientPreviewGate } from "@/components/security-forms";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Project review · Chapter",
@@ -21,6 +22,26 @@ export default async function ReviewPage({
     data = await reviewData((await params).reviewId);
   } catch (e) {
     if (!(e instanceof AppError)) throw e;
+    if (e.status === 401) {
+      const id = (await params).reviewId,
+        gate = await reviewGate(id);
+      return (
+        <div className="shared-page">
+          <header>
+            <Link href="/">
+              <Brand />
+            </Link>
+            <span>Shared privately for review.</span>
+          </header>
+          <main id="main-content">
+            <ClientPreviewGate
+              id={id}
+              mode={gate.mode === "password" ? "password" : "email"}
+            />
+          </main>
+        </div>
+      );
+    }
     return (
       <div className="shared-page">
         <header>
@@ -66,6 +87,11 @@ export default async function ReviewPage({
           </p>
         ) : null}
         <div className="button-row">
+          {data.documentUrls.map((f) => (
+            <a key={f.url} href={f.url} className="button">
+              Download PDF: {f.name}
+            </a>
+          ))}
           {data.demoUrl ? (
             <a
               href={data.demoUrl}
@@ -85,8 +111,27 @@ export default async function ReviewPage({
         {data.demoUrl ? (
           <p className="field-hint">
             The demo is an external application and may change independently of
-            these captured records.
+            these captured records. The Chapter access gate does not protect
+            this direct URL. The owner must configure deployment protection at
+            its hosting provider.
           </p>
+        ) : null}
+        {data.htmlPreview ? (
+          <section className="launch-stack">
+            <h2>Saved website preview</h2>
+            <iframe
+              title="Captured website layout"
+              className="quick-preview-frame"
+              sandbox=""
+              referrerPolicy="no-referrer"
+              srcDoc={data.htmlPreview}
+            />
+            <p className="field-hint">
+              This layout is pinned to the reviewed package. Scripts, forms and
+              network requests are blocked. Application functionality is not
+              verified.
+            </p>
+          </section>
         ) : null}
         {data.screenshotUrls.map((url, i) => (
           <Image
@@ -110,7 +155,15 @@ export default async function ReviewPage({
             <pre className="review-text">{data.brief}</pre>
           </details>
         ) : null}
-        <ExternalReview initial={data} />
+        <ExternalReview
+          initial={{
+            id: data.id,
+            approval: data.approval,
+            comments: data.comments,
+            feedback: data.feedback,
+            reviewerVerified: data.reviewerVerified,
+          }}
+        />
         <p className="field-hint">
           The owner chose viewing, feedback and source download permissions
           separately. Files already downloaded cannot be recalled.

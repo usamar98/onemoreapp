@@ -25,6 +25,7 @@ export function QuickPublishPanel({
   onClose,
   onSaved,
   onIntegrations,
+  onReview,
 }: {
   project?: Project;
   vercel: boolean;
@@ -33,6 +34,7 @@ export function QuickPublishPanel({
   onClose: () => void;
   onSaved: (project: Project, message?: string) => void;
   onIntegrations: () => void;
+  onReview: (project: Project) => void;
 }) {
   const [project, setProject] = useState<Project | undefined>(initial);
   const [name, setName] = useState(initial?.name || "");
@@ -540,6 +542,13 @@ export function QuickPublishPanel({
               </span>
             </label>
             <div className="quick-sharing-options">
+              <Button
+                disabled={!!busy || !canControl}
+                onClick={() => onReview(project)}
+              >
+                <LockKeyhole size={16} />
+                Create private client preview
+              </Button>
               {project.demoUrl ? (
                 <label>
                   <input

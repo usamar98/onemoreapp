@@ -72,6 +72,9 @@ import { consume, release } from "@/lib/billing";
 import { enqueue, runJob, runPending } from "@/lib/jobs";
 import { notifyOwners } from "@/lib/notifications";
 import { after } from "next/server";
+import { accountSecurityRoute } from "@/lib/account-security-api";
+import { issueEmailToken } from "@/lib/account-security";
+import { deliverMail, emailMode } from "@/lib/transactional-email";
 import { statuses, type Project, type Memory, type User } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -179,6 +182,8 @@ async function route(request: Request, parts: string[]) {
   if (section === "developer") return (await developerRoute(request, parts))!;
   if (method !== "GET" && !(section === "billing" && id === "webhook"))
     checkOrigin(request);
+  const accountRoute = await accountSecurityRoute(request, parts);
+  if (accountRoute) return accountRoute;
   const phaseSix = await phaseSixRoute(request, parts);
   if (phaseSix) return phaseSix;
   const phaseFive = await phaseFiveRoute(request, parts);
@@ -263,6 +268,19 @@ async function route(request: Request, parts: string[]) {
         );
       await createSession(user);
       await record(user.id, "Created your Chapter workspace");
+      if (emailMode() !== "unavailable") {
+        try {
+          const delivery = await issueEmailToken(
+            user.id,
+            user.email,
+            "verify",
+            user.id,
+          );
+          after(() => deliverMail(delivery));
+        } catch {
+          /* Registration remains saved; account settings offer retry. */
+        }
+      }
       return json({ user }, 201);
     }
     if (id === "login") {

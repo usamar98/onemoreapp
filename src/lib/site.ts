@@ -6,7 +6,9 @@ export const siteDescription =
 export function siteOrigin() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;
   const candidate =
-    configured || process.env.NEXT_PUBLIC_APP_URL || "https://onemoreapp.pro";
+    configured ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://onemoreapp-sandy.vercel.app";
   const url = new URL(candidate);
   if (
     url.username ||
@@ -19,7 +21,7 @@ export function siteOrigin() {
       throw new Error(
         "NEXT_PUBLIC_SITE_URL must be a public production URL, not localhost.",
       );
-    return "https://onemoreapp.pro";
+    return "https://onemoreapp-sandy.vercel.app";
   }
   if (url.protocol !== "https:")
     throw new Error("The production site URL must use HTTPS.");

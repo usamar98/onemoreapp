@@ -5,7 +5,10 @@ import { Button, Field, Notice, api } from "./ui";
 export function ExternalReview({
   initial,
 }: {
-  initial: Awaited<ReturnType<typeof reviewData>>;
+  initial: Pick<
+    Awaited<ReturnType<typeof reviewData>>,
+    "id" | "approval" | "comments" | "feedback" | "reviewerVerified"
+  >;
 }) {
   const [data, setData] = useState(initial),
     [name, setName] = useState(""),
@@ -20,8 +23,12 @@ export function ExternalReview({
     <section className="launch-stack">
       <h2>Feedback on this version</h2>
       <Notice>
-        Approval status: {data.approval}. Names and decisions are supplied by
-        link holders and are not verified signatures.
+        Approval status: {data.approval}.{" "}
+        {data.reviewerVerified
+          ? "Your invited email was verified for access. "
+          : ""}
+        Names and decisions are supplied by reviewers and are not verified
+        signatures.
       </Notice>
       {data.comments.map((c) => (
         <article className="launch-card" key={String(c.id)}>
@@ -54,10 +61,16 @@ export function ExternalReview({
                 consent,
                 requestId: event.current,
               });
-              setData(
-                (await api<{ review: typeof data }>("reviews/" + data.id))
-                  .review,
-              );
+              const updated = (
+                await api<{ review: typeof data }>("reviews/" + data.id)
+              ).review;
+              setData({
+                id: updated.id,
+                approval: updated.approval,
+                comments: updated.comments,
+                feedback: updated.feedback,
+                reviewerVerified: updated.reviewerVerified,
+              });
               setText("");
               setMessage("Feedback attached to this reviewed version.");
               event.current = "";

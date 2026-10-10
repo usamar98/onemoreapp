@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db, transaction, cloudMode } from "./database";
@@ -30,9 +31,16 @@ import {
   reviewPreview,
   reviewData,
   activeReview,
+  authorizedReview,
+  reviewGate,
+  grantReview,
+  requestReviewEmail,
+  reviewAccessStep,
+  reviewCookie,
   reviewFile,
   newReviewId,
 } from "./reviews";
+import { requireEmail, deliverMail } from "./transactional-email";
 import {
   portfolioPreview,
   publishedPortfolio,
@@ -93,6 +101,11 @@ const reviewOptions = z.object({
   screenshots: z.boolean().default(true),
   notes: z.boolean().default(false),
   days: z.number().int().min(1).max(90).default(7),
+  access: z.enum(["link", "password", "email"]).default("link"),
+  password: z.string().max(128).default(""),
+  recipientEmails: z.array(z.email().max(254)).max(20).default([]),
+  packagePreview: z.boolean().default(false),
+  documents: z.boolean().default(false),
 });
 const portfolioOptions = z.object({
   title: z.string().trim().min(1).max(100),
@@ -174,21 +187,61 @@ export async function phaseFourRoute(
     }
   }
   if (section === "reviews") {
+    if (action === "gate" && method === "GET")
+      return json(await reviewGate(id));
+    if (action === "unlock" && method === "POST") {
+      await rateLimit(
+        `review-unlock:${id}:${hash(request.headers.get("x-forwarded-for")?.split(",")[0] || "local")}`,
+        10,
+        3600000,
+      );
+      const input = z
+        .object({
+          password: z.string().max(128).optional(),
+          token: z.string().max(64).optional(),
+        })
+        .parse(await body(request));
+      const { grant, expires } = await grantReview(id, input);
+      (await cookies()).set(reviewCookie(id), grant, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure:
+          !!process.env.VERCEL ||
+          process.env.COOKIE_SECURE === "true" ||
+          !!process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://"),
+        path: "/",
+        maxAge: Math.max(1, Math.floor((expires - Date.now()) / 1000)),
+      });
+      return json({ ok: true });
+    }
+    if (action === "request-access" && method === "POST") {
+      requireEmail();
+      const email = z
+        .email()
+        .max(254)
+        .parse((await body(request)).email)
+        .toLowerCase();
+      await rateLimit(`review-email:${id}:${hash(email)}`, 3, 3600000);
+      await rateLimit(
+        `review-mail-ip:${hash(request.headers.get("x-forwarded-for")?.split(",")[0] || "local")}`,
+        20,
+        3600000,
+      );
+      const delivery = await requestReviewEmail(id, email);
+      if (delivery) after(() => deliverMail(delivery));
+      return json({
+        message:
+          "If this email is an invited recipient, an access link has been queued. Check your inbox and spam folder.",
+      });
+    }
     if (method === "GET" && !action)
       return json({ review: await reviewData(id) });
     if (method === "GET" && action === "file") {
       const f = await reviewFile(id, fileId);
-      if ("objectName" in f && f.objectName)
-        return NextResponse.redirect(await objectUrl(f.objectName), {
-          headers: {
-            "Cache-Control": "private, no-store",
-            "Referrer-Policy": "no-referrer",
-          },
-        });
       return fileResponse(f.bytes, f.name, f.type, f.inline);
     }
     if (method === "POST" && action === "feedback") {
-      const { row, snapshot } = await activeReview(id);
+      const { row, snapshot } = await authorizedReview(id);
       if (!snapshot.feedback)
         throw new AppError(
           "Feedback is disabled for this reviewed version.",
@@ -455,18 +508,22 @@ export async function phaseFourRoute(
         );
       delete preview.sourceFiles;
       const linkId = newReviewId();
-      await db()
-        .prepare("INSERT INTO review_links VALUES(?,?,?,?,?,?,?,?)")
-        .run(
-          linkId,
-          id,
-          a.owner,
-          actor,
-          JSON.stringify(preview),
-          Date.now() + options.days * 86400000,
-          0,
-          new Date().toISOString(),
-        );
+      await transaction([
+        {
+          sql: "INSERT INTO review_links VALUES(?,?,?,?,?,?,?,?)",
+          parameters: [
+            linkId,
+            id,
+            a.owner,
+            actor,
+            JSON.stringify(preview),
+            Date.now() + options.days * 86400000,
+            0,
+            new Date().toISOString(),
+          ],
+        },
+        await reviewAccessStep(linkId, options),
+      ]);
       await record(
         a.owner,
         `Created an expiring review of ${a.project.name}; source ${preview.sourceId ? "enabled" : "private"}`,
@@ -483,15 +540,23 @@ export async function phaseFourRoute(
         .all(id);
       return json({
         links: await Promise.all(
-          links.map(async (l) => ({
-            ...l,
-            data: JSON.parse(String(l.data)),
-            comments: await db()
+          links.map(async (l) => {
+            const comments = await db()
               .prepare(
                 "SELECT name,text,decision,at FROM review_feedback WHERE review_id=? ORDER BY at",
               )
-              .all(String(l.id)),
-          })),
+              .all(String(l.id));
+            return {
+              ...l,
+              data: JSON.parse(String(l.data)),
+              comments,
+              approval:
+                comments
+                  .slice()
+                  .reverse()
+                  .find((c) => c.decision !== "Comment")?.decision || "Pending",
+            };
+          }),
         ),
       });
     }

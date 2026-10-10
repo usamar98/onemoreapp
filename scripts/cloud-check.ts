@@ -23,7 +23,7 @@ async function check() {
   try {
     const rows =
       await sql`select count(*)::int as count from information_schema.tables where table_schema='chapter'`;
-    if (rows[0].count !== 50)
+    if (rows[0].count !== 55)
       throw new Error(
         "Apply cloud/schema.sql in your Supabase SQL editor first.",
       );

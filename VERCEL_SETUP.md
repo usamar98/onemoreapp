@@ -4,7 +4,7 @@ Chapter now uses Vercel for project hosting. To host the SaaS itself on Vercel, 
 
 ## 1. Set up your Supabase project
 
-Create a dedicated Supabase project in your chosen organization. Review its plan and costs in your account. Run [cloud/schema.sql](cloud/schema.sql) in the project's SQL editor. This creates 50 tables in the private `chapter` schema and the private `chapter-files` bucket. Leave `chapter` out of the Data API's exposed schemas. Do not add public Storage policies to this bucket.
+Create a dedicated Supabase project in your chosen organization. Review its plan and costs in your account. Run [cloud/schema.sql](cloud/schema.sql) in the project's SQL editor. This creates 55 tables in the private `chapter` schema and the private `chapter-files` bucket. Leave `chapter` out of the Data API's exposed schemas. Do not add public Storage policies to this bucket.
 
 Chapter keeps its existing server-side authentication. Passwords are hashed, cookies are HttpOnly, and server queries check project ownership. Browser roles have no access to Chapter's tables; RLS is enabled as additional protection. PostgreSQL connects using your project's `postgres` role through the transaction pooler. Supabase is used for database and private file persistence.
 

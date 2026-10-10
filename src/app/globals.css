@@ -5753,3 +5753,64 @@ input[type="checkbox"][role="switch"]:checked:after {
     flex-wrap: wrap;
   }
 }
+/* Account recovery and the client access gate use the existing product palette. */
+.security-page {
+  min-height: 100svh;
+  background: var(--canvas);
+  padding: 28px clamp(20px, 5vw, 64px);
+}
+.security-page header {
+  margin-bottom: 64px;
+}
+.security-form {
+  width: min(100%, 520px);
+  margin: 36px auto;
+}
+.security-form h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+.security-form input {
+  width: 100%;
+  min-width: 0;
+}
+.auth-recovery-link {
+  display: inline-flex;
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.account-security {
+  padding-block: 20px;
+  border-block: 1px solid var(--line);
+  margin-block: 16px;
+}
+.review-access-options {
+  display: grid;
+  gap: 16px;
+}
+.review-overview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (max-width: 600px) {
+  .security-page header {
+    margin-bottom: 32px;
+  }
+  .security-form {
+    margin-block: 24px;
+  }
+  .security-form h1 {
+    font-size: 1.7rem;
+  }
+  .security-form .button-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

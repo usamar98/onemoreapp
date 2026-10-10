@@ -46,6 +46,9 @@ test("encrypted platform snapshot verifies and restores accounts, access and fil
   );
   const pass = "test-only-long-operator-passphrase";
   database.exec(
+    "CREATE TABLE review_grants(token TEXT); INSERT INTO review_grants VALUES('old-grant'); CREATE TABLE auth_tokens(consumed INTEGER); INSERT INTO auth_tokens VALUES(0); CREATE TABLE mail_deliveries(state TEXT,data TEXT,lease INTEGER,error TEXT); INSERT INTO mail_deliveries VALUES('queued','encrypted-payload',0,NULL);",
+  );
+  database.exec(
     "CREATE TABLE developer_tokens(revoked INTEGER); INSERT INTO developer_tokens VALUES(0); CREATE TABLE resume_sessions(state TEXT); INSERT INTO resume_sessions VALUES('active');",
   );
   const out = await createLocalBackup(source, pass);
@@ -73,6 +76,22 @@ test("encrypted platform snapshot verifies and restores accounts, access and fil
   const recovered = new DatabaseSync(
     path.join(restored.directory, "chapter.sqlite"),
     { readOnly: true },
+  );
+  assert.equal(
+    recovered.prepare("SELECT count(*) AS n FROM review_grants").get()?.n,
+    0,
+  );
+  assert.equal(
+    recovered.prepare("SELECT consumed FROM auth_tokens").get()?.consumed,
+    1,
+  );
+  assert.equal(
+    recovered.prepare("SELECT state FROM mail_deliveries").get()?.state,
+    "expired",
+  );
+  assert.equal(
+    recovered.prepare("SELECT data FROM mail_deliveries").get()?.data,
+    "",
   );
   assert.equal(
     recovered.prepare("SELECT revoked FROM developer_tokens").get()?.revoked,
