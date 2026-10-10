@@ -6,7 +6,7 @@ export const MAX_UPLOAD = 20 * 1024 * 1024;
 const forbidden =
   /(^|\/)(\.env(?:\.[^/]*)?|\.git|node_modules|\.next|\.aws|\.ssh|\.npmrc|\.netrc|credentials[^/]*|secrets?[^/]*|id_rsa|id_ed25519)(\/|$)|\.(pem|key|p12|pfx)$/i;
 const textFiles =
-  /\.(?:js|mjs|cjs|ts|tsx|jsx|json|html|css|md|txt|yaml|yml|toml|xml|svg|csv|sh|py|rb|go|rs|sql|map)$/i;
+  /\.(?:js|mjs|cjs|ts|tsx|jsx|vue|svelte|json|html?|css|md|txt|yaml|yml|toml|ini|config|properties|xml|svg|csv|sh|py|rb|go|rs|sql|php[0-9]?|phtml|asp|aspx|jsp|map)$/i;
 export function boundedEntry(
   entry: JSZip.JSZipObject,
   maximum: number,
@@ -152,7 +152,9 @@ export async function inspectZip(
     for (const name of names.filter(
       (n) =>
         n.startsWith(buildPrefix) &&
-        !/\.(?:map|ts|tsx|jsx|py|rb|go|rs|sql)$/i.test(n),
+        !/\.(?:map|ts|tsx|jsx|vue|svelte|py|rb|go|rs|sql|php[0-9]?|phtml|asp|aspx|jsp)$/i.test(
+          n,
+        ),
     ))
       staticZip.file(
         name.slice(buildPrefix.length),

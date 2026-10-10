@@ -11,6 +11,343 @@
   --purple: oklch(51% 0.09 299);
   --shadow: 0 8px 26px oklch(30% 0.02 150 / 0.055);
 }
+.page-actions {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.quick-publish {
+  gap: 22px;
+}
+.quick-steps {
+  display: flex;
+  gap: 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.quick-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.quick-steps li span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.quick-steps li.complete span {
+  color: var(--green);
+  background: var(--mint);
+  border-color: var(--mint);
+}
+.quick-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 26px;
+}
+.quick-upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.quick-upload-form h3,
+.quick-publish-actions h3 {
+  font-size: 21px;
+  margin: 0;
+  letter-spacing: -0.6px;
+}
+.quick-upload-form > p {
+  margin: 0;
+  line-height: 1.65;
+}
+.quick-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 30px 16px;
+  border: 1px dashed oklch(75% 0.027 160);
+  border-radius: 12px;
+  background: var(--canvas);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition:
+    background 180ms ease-out,
+    border-color 180ms ease-out;
+}
+.quick-drop > svg {
+  color: var(--green);
+  margin-bottom: 4px;
+}
+.quick-drop > strong {
+  font-size: 14px;
+}
+.quick-drop > span,
+.quick-drop > small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.quick-drop > small {
+  margin-top: 10px;
+  font-size: 11px;
+}
+.quick-drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.quick-drop:focus-within {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.quick-drop.dragging,
+.quick-drop.has-file {
+  background: var(--mint);
+  border-color: var(--green);
+}
+.quick-private {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.quick-private svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.quick-progress {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.quick-progress progress {
+  width: 100%;
+  accent-color: var(--green);
+  height: 8px;
+}
+.quick-review {
+  min-width: 0;
+}
+.quick-empty {
+  display: flex;
+  min-height: 360px;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 34px;
+  background: var(--canvas);
+  border-radius: 12px;
+}
+.quick-empty > svg {
+  color: var(--green);
+  margin-bottom: 20px;
+}
+.quick-empty h3 {
+  margin: 0;
+  font-size: 19px;
+}
+.quick-empty p {
+  color: var(--muted);
+  line-height: 1.8;
+  max-width: 32ch;
+}
+.quick-empty > span {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+.quick-file-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.quick-file-heading > svg {
+  flex-shrink: 0;
+  color: var(--green);
+}
+.quick-file-heading strong,
+.quick-file-heading small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.quick-file-heading small {
+  color: var(--muted);
+  margin-top: 5px;
+  font-size: 11px;
+}
+.quick-preview-frame {
+  width: 100%;
+  height: 260px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.quick-image-preview {
+  display: block;
+  width: 100%;
+  height: 260px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+}
+.quick-pdf-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  min-height: 260px;
+  padding: 24px;
+  border-radius: 10px;
+  background: var(--canvas);
+}
+.quick-pdf-preview > svg {
+  color: var(--green);
+}
+.quick-pdf-preview > p {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+.quick-checks {
+  margin-top: 18px;
+}
+.quick-checks h4 {
+  margin: 0 0 10px;
+}
+.quick-checks > p {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 8px 0;
+}
+.quick-checks svg {
+  color: var(--green);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.quick-checks .quick-warning {
+  display: block;
+  color: var(--muted);
+}
+.quick-checks > small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+  margin-top: 12px;
+}
+.quick-checks code {
+  overflow-wrap: anywhere;
+}
+.quick-publish-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 23px;
+  border-top: 1px solid var(--line);
+}
+.quick-publish-actions > div > p {
+  color: var(--muted);
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.quick-sharing-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.quick-sharing-options label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.quick-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.quick-publish .form-footer {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.shared-documents {
+  margin: 30px 0;
+}
+.shared-documents > p {
+  color: var(--muted);
+}
+.shared-document {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+}
+.shared-document > strong {
+  overflow-wrap: anywhere;
+}
+.shared-document > div {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+@media (max-width: 700px) {
+  .quick-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .quick-steps {
+    gap: 8px;
+  }
+  .quick-steps li {
+    flex: 1;
+    align-items: flex-start;
+    font-size: 10px;
+    line-height: 1.6;
+    gap: 5px;
+  }
+  .quick-steps li span {
+    width: 20px;
+    height: 20px;
+  }
+  .quick-empty {
+    min-height: 200px;
+    padding: 24px;
+  }
+  .quick-action-row .button {
+    flex: 1 1 180px;
+  }
+  .shared-document {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 * {
   box-sizing: border-box;
 }

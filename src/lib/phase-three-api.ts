@@ -1114,14 +1114,19 @@ export async function phaseThreeRoute(
       if (Object.keys(next).some((k) => !allowed.includes(k)))
         throw new AppError("Unsupported stored record.", 409);
       if (kind === "package")
-        for (const key of ["sourceId", "buildId"])
+        for (const fileId of [
+          next.sourceId,
+          next.buildId,
+          ...((next.documentIds as string[] | undefined) || []),
+          (next.quickPublish as { assetId?: string } | null)?.assetId,
+        ])
           if (
-            next[key] &&
+            fileId &&
             !(await db()
               .prepare(
                 "SELECT id FROM uploads WHERE id=? AND project_id=? AND owner=?",
               )
-              .get(String(next[key]), id, owner))
+              .get(String(fileId), id, owner))
           )
             throw new AppError("The stored package is unavailable.", 409);
       Object.assign(p, next);

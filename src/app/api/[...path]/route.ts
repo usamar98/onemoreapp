@@ -47,6 +47,12 @@ import {
   githubSlug,
 } from "@/lib/security";
 import { MAX_UPLOAD, inspectZip, screenshotType } from "@/lib/uploads";
+import {
+  inspectQuickFile,
+  inspectPdf,
+  quickPreview,
+} from "@/lib/quick-publish";
+import { pinPortfolioScreenshots } from "@/lib/public-portfolio";
 import { demoProjects, previewWorkspace } from "@/lib/demo";
 import { githubInfo, githubArchive } from "@/lib/integrations";
 import { notesBrief, aiBrief } from "@/lib/brief";
@@ -131,8 +137,12 @@ async function attachArchive(
   project: Project,
   name: string,
   buffer: Buffer,
+  prepared?: Awaited<ReturnType<typeof inspectZip>>,
 ) {
-  const archive = await inspectZip(buffer, await accountSecrets(owner));
+  const archive =
+    prepared || (await inspectZip(buffer, await accountSecrets(owner)));
+  project.quickPublish = null;
+  project.sharedSourceId ??= project.sourceId;
   project.referencedEnvNames = [
     ...new Set([...project.referencedEnvNames, ...archive.envNames]),
   ]
@@ -304,10 +314,15 @@ async function route(request: Request, parts: string[]) {
         project?.shared &&
         ((row.kind === "screenshot" &&
           project.shareScreenshots &&
-          project.screenshotIds.includes(id)) ||
+          (project.sharedScreenshotIds ?? project.screenshotIds).includes(
+            id,
+          )) ||
           (row.kind === "source" &&
             project.shareFiles &&
-            project.sourceId === id));
+            (project.sharedSourceId ?? project.sourceId) === id) ||
+          (row.kind === "document" &&
+            project.shareDocuments &&
+            project.sharedDocumentIds?.includes(id)));
       if (!allowed) throw new AppError("File not found.", 404);
     }
     if (row.kind === "source")
@@ -315,21 +330,36 @@ async function route(request: Request, parts: string[]) {
         await uploadBytes(id, String(row.owner)),
         await accountSecrets(String(row.owner)),
       );
+    if (row.kind === "document")
+      inspectPdf(
+        await uploadBytes(id, String(row.owner)),
+        await accountSecrets(String(row.owner)),
+      );
     const name = String(row.name).replace(/[^\w. -]/g, "_");
+    const inlinePdf =
+      row.kind === "document" &&
+      new URL(request.url).searchParams.get("preview") === "1";
     if (row.object_name)
       return NextResponse.redirect(
         await objectUrl(
           String(row.object_name),
-          row.kind === "screenshot" ? undefined : name,
+          row.kind === "screenshot" || inlinePdf ? undefined : name,
         ),
         { status: 307, headers: { "Cache-Control": "private, no-store" } },
       );
     return new NextResponse(new Uint8Array(row.data as Uint8Array), {
       headers: {
         "Content-Type": String(row.type),
-        "Content-Disposition": `${row.kind === "screenshot" ? "inline" : "attachment"}; filename="${name}"`,
+        "Content-Disposition": `${row.kind === "screenshot" || inlinePdf ? "inline" : "attachment"}; filename="${name}"`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
+        ...(inlinePdf
+          ? {
+              "Content-Security-Policy":
+                "sandbox; default-src 'none'; frame-ancestors 'self'",
+              "X-Frame-Options": "SAMEORIGIN",
+            }
+          : {}),
       },
     });
   }
@@ -486,11 +516,13 @@ async function route(request: Request, parts: string[]) {
   );
   owner = access.owner;
   const project = access.project;
+  if (action === "quick-preview" && method === "GET")
+    return json(await quickPreview(project, owner));
   if (action === "upload-token" && method === "POST") {
     const input = z
       .object({
         name: z.string().min(1).max(240),
-        kind: z.enum(["source", "screenshot"]),
+        kind: z.enum(["source", "screenshot", "quick"]),
         size: z.number().int().positive().max(MAX_UPLOAD),
       })
       .parse(await body(request));
@@ -614,6 +646,72 @@ async function route(request: Request, parts: string[]) {
     if (!(file instanceof File) || !file.size || file.size > MAX_UPLOAD)
       throw new AppError("Select a non-empty file smaller than 20 MB.");
     const data = Buffer.from(await file.arrayBuffer());
+    if (kind === "quick") {
+      const report = await inspectQuickFile(
+        file.name,
+        data,
+        await accountSecrets(owner),
+      );
+      // Re-uploading after a lost response returns the same stored version.
+      if (project.quickPublish?.digest === report.digest)
+        return json({ project, excluded: project.quickPublish.excluded });
+      const safeName = (await ownerRedact(owner, file.name))
+        .replace(/[^\w. -]/g, "_")
+        .slice(0, 240);
+      let assetId: string;
+      if (report.archive) {
+        const name =
+          report.format === "html"
+            ? safeName.replace(/\.html?$/i, "") + "-source.zip"
+            : safeName;
+        await attachArchive(owner, project, name, data, report.archive);
+        assetId = project.sourceId;
+      } else if (report.format === "pdf") {
+        if ((project.documentIds || []).length >= 8)
+          throw new AppError("A project can hold up to eight PDF documents.");
+        assetId = await storeUpload(
+          owner,
+          project.id,
+          safeName,
+          "document",
+          report.type,
+          data,
+        );
+        project.documentIds = [...(project.documentIds || []), assetId];
+      } else {
+        if (project.screenshotIds.length >= 8)
+          throw new AppError("A project can hold up to eight images.");
+        assetId = await storeUpload(
+          owner,
+          project.id,
+          safeName,
+          "screenshot",
+          report.type,
+          data,
+        );
+        await pinPortfolioScreenshots(owner, project);
+        project.sharedScreenshotIds ??= [...project.screenshotIds];
+        project.screenshotIds.push(assetId);
+      }
+      project.quickPublish = {
+        format: report.format,
+        name: safeName,
+        assetId,
+        digest: report.digest,
+        checkedAt: new Date().toISOString(),
+        fileCount: report.archive?.count || 1,
+        excluded: report.archive?.excluded || 0,
+        warnings: report.warnings,
+      };
+      const saved = await saveProject(project, owner);
+      await record(
+        owner,
+        `Prepared ${project.name} with Quick Publish (${report.format})`,
+        "import",
+        project.id,
+      );
+      return json({ project: saved, excluded: report.archive?.excluded || 0 });
+    }
     if (kind === "screenshot") {
       if (file.size > 5 * 1024 * 1024)
         throw new AppError("Screenshots must be smaller than 5 MB.");
@@ -628,6 +726,8 @@ async function route(request: Request, parts: string[]) {
         type,
         data,
       );
+      await pinPortfolioScreenshots(owner, project);
+      project.sharedScreenshotIds ??= [...project.screenshotIds];
       project.screenshotIds.push(fileId);
       await saveProject(project, owner);
       return json({ project });
@@ -648,6 +748,9 @@ async function route(request: Request, parts: string[]) {
       .object({ fileId: z.string() })
       .parse(await body(request));
     project.screenshotIds = project.screenshotIds.filter((s) => s !== fileId);
+    project.sharedScreenshotIds = (
+      project.sharedScreenshotIds ?? project.screenshotIds
+    ).filter((s) => s !== fileId);
     return json({ project: await saveProject(project, owner) });
   }
   if (action === "share" && method === "POST") {
@@ -658,6 +761,7 @@ async function route(request: Request, parts: string[]) {
         shareFiles: z.boolean(),
         shareDemo: z.boolean(),
         shareScreenshots: z.boolean(),
+        shareDocuments: z.boolean().optional(),
       })
       .parse(await body(request));
     if (input.shared && input.shareFiles && project.sourceId)
@@ -665,7 +769,20 @@ async function route(request: Request, parts: string[]) {
         await uploadBytes(project.sourceId, owner),
         await accountSecrets(owner),
       );
+    if (input.shared && (input.shareDocuments ?? project.shareDocuments))
+      for (const documentId of project.documentIds || [])
+        inspectPdf(
+          await uploadBytes(documentId, owner),
+          await accountSecrets(owner),
+        );
     Object.assign(project, input);
+    project.sharedSourceId = project.shareFiles ? project.sourceId : "";
+    project.sharedScreenshotIds = project.shareScreenshots
+      ? [...project.screenshotIds]
+      : [];
+    project.sharedDocumentIds = project.shareDocuments
+      ? [...(project.documentIds || [])]
+      : [];
     await saveProject(project, owner);
     await record(
       owner,
@@ -945,4 +1062,10 @@ async function handle(
     );
   }
 }
-export { handle as GET, handle as POST, handle as PATCH, handle as DELETE, handle as PUT };
+export {
+  handle as GET,
+  handle as POST,
+  handle as PATCH,
+  handle as DELETE,
+  handle as PUT,
+};

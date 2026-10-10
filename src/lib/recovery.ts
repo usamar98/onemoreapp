@@ -22,6 +22,7 @@ import { writeObject, readObject, removeObject } from "./storage";
 import { statuses, type Project } from "./types";
 import { progressSchema } from "./continuation";
 import { inspectPreservationPackage } from "./preservation";
+import { inspectPdf, quickPublishSchema } from "./quick-publish";
 export const EXPORT_LIMIT = 18 * 1024 * 1024;
 export async function recoveryTicket(actor: string, owner: string, id: string) {
   const access = await workspaceRole(owner, actor);
@@ -123,6 +124,7 @@ export async function buildExport(
       )
         bytes = (await inspectZip(bytes, secrets)).source;
       else if (u.kind === "screenshot") screenshotType(bytes);
+      else if (u.kind === "document") inspectPdf(bytes, secrets);
       else {
         warnings.push(`Unsupported stored file ${u.id} was excluded.`);
         continue;
@@ -251,6 +253,7 @@ export async function buildExport(
             shared: false,
             shareFiles: false,
             shareRepo: false,
+            shareDocuments: false,
             handover: null,
             syncEnabled: false,
           },
@@ -416,6 +419,8 @@ const projectSchema = z.object({
   repoInfo: z.string().max(20000),
   version: z.string().max(200),
   screenshotIds: z.array(z.string().max(100)).max(10),
+  documentIds: z.array(z.string().max(100)).max(8).default([]),
+  quickPublish: quickPublishSchema.nullable().default(null),
   sourceId: z.string().max(100),
   sourceName: z.string().max(240),
   buildId: z.string().max(100),
@@ -581,6 +586,7 @@ const archiveSchema = z.object({
           "capture",
           "preservation",
           "verified-build",
+          "document",
         ]),
         type: z.string().max(80),
         bytes: z.number().int().min(0).max(MAX_UPLOAD),
@@ -645,6 +651,8 @@ export async function readExport(bytes: Buffer, secrets: string[] = []) {
       f.type = screenshotType(data);
       if (data.length > 5 * 1024 * 1024)
         throw new AppError("Recovered screenshot exceeds 5 MB.");
+    } else if (f.kind === "document") {
+      f.type = inspectPdf(data, secrets);
     } else {
       data = (await inspectZip(data, secrets)).source;
       f.type = "application/zip";
@@ -675,9 +683,15 @@ export async function readExport(bytes: Buffer, secrets: string[] = []) {
           "A captured file snapshot is missing from the export.",
         );
     if (
-      [p.project.sourceId, p.project.buildId, ...p.project.screenshotIds]
+      [
+        p.project.sourceId,
+        p.project.buildId,
+        ...p.project.screenshotIds,
+        ...p.project.documentIds,
+        p.project.quickPublish?.assetId,
+      ]
         .filter(Boolean)
-        .some((id) => !own.has(id))
+        .some((id) => !own.has(String(id)))
     )
       throw new AppError("A project references a missing uploaded file.");
     // Version contents must validate as the corresponding record shape, never arbitrary project properties.
@@ -730,6 +744,8 @@ export async function readExport(bytes: Buffer, secrets: string[] = []) {
             sourceId: z.string().max(100),
             sourceName: z.string().max(240),
             buildId: z.string().max(100),
+            documentIds: z.array(z.string().max(100)).max(8).default([]),
+            quickPublish: quickPublishSchema.nullable().default(null),
             version: z.string().max(200),
             referencedEnvNames: z
               .array(z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/))
@@ -738,7 +754,12 @@ export async function readExport(bytes: Buffer, secrets: string[] = []) {
           .parse(v.data);
       if (
         v.kind === "package" &&
-        [v.data.sourceId, v.data.buildId]
+        [
+          v.data.sourceId,
+          v.data.buildId,
+          ...((v.data.documentIds as string[]) || []),
+          (v.data.quickPublish as { assetId?: string } | null)?.assetId,
+        ]
           .filter(Boolean)
           .some((id) => !own.has(String(id)))
       )
@@ -835,9 +856,9 @@ export async function restoreExport(
       return Object.fromEntries(
         Object.entries(value).map(([k, v]) => [
           k,
-          ["sourceId", "buildId", "fileId"].includes(k)
+          ["sourceId", "buildId", "fileId", "assetId"].includes(k)
             ? fileMap.get(String(v)) || ""
-            : k === "screenshotIds"
+            : ["screenshotIds", "documentIds"].includes(k)
               ? (v as string[]).map((id) => fileMap.get(id)).filter(Boolean)
               : mapReferences(v),
         ]),
@@ -861,6 +882,10 @@ export async function restoreExport(
     p.shareRepo = false;
     p.shareDemo = false;
     p.shareScreenshots = false;
+    p.shareDocuments = false;
+    p.sharedSourceId = "";
+    p.sharedScreenshotIds = [];
+    p.sharedDocumentIds = [];
     p.shareVideo = false;
     p.waitlistEnabled = false;
     p.enquiriesEnabled = false;

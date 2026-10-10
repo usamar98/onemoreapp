@@ -331,6 +331,7 @@ export function SharePanel({
       shareFiles: project.shareFiles,
       shareDemo: project.shareDemo,
       shareScreenshots: project.shareScreenshots,
+      shareDocuments: project.shareDocuments || false,
     });
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -386,6 +387,27 @@ export function SharePanel({
         </div>
         <div className="sharing-options">
           <h4>Choose what goes with it</h4>
+          {project.documentIds?.length ? (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={options.shareDocuments}
+                onChange={(e) =>
+                  setOptions((s) => ({
+                    ...s,
+                    shareDocuments: e.target.checked,
+                  }))
+                }
+              />
+              <span>
+                <strong>PDF documents</strong>
+                <small>
+                  Allow viewing and downloading the project's{" "}
+                  {project.documentIds.length} PDF document(s).
+                </small>
+              </span>
+            </label>
+          ) : null}
           {(
             [
               [
@@ -772,6 +794,7 @@ export function DetailsPanel({
   onKnowledge,
   onLaunch,
   onPreserve,
+  onQuickPublish,
   onSaved,
 }: {
   project: Project;
@@ -783,6 +806,7 @@ export function DetailsPanel({
   onKnowledge: () => void;
   onLaunch: () => void;
   onPreserve: () => void;
+  onQuickPublish: () => void;
 } & Props) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -889,6 +913,7 @@ export function DetailsPanel({
             <p className="field-hint">Your project access: {project.role}</p>
           ) : null}
           <h3>Links & files</h3>
+          <Button onClick={onQuickPublish}>Quick Publish</Button>
           {project.repository ? (
             <a
               href={project.repository}

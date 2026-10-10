@@ -12,6 +12,14 @@ export async function sharedProject(shareId: string) {
   const secrets = await accountSecrets(String(row.owner));
   const text = (value: string) => redact(value, secrets);
   const url = (value: string) => (text(value) === value ? value : "");
+  const documents =
+    p.shareDocuments && p.sharedDocumentIds?.length
+      ? await db()
+          .prepare(
+            `SELECT id,name FROM uploads WHERE owner=? AND project_id=? AND kind='document' AND id IN (${p.sharedDocumentIds.map(() => "?").join(",")})`,
+          )
+          .all(String(row.owner), p.id, ...p.sharedDocumentIds)
+      : [];
   return {
     id: p.id,
     shareId: p.shareId,
@@ -22,9 +30,15 @@ export async function sharedProject(shareId: string) {
     tags: p.tags.map(text),
     demoUrl: p.shareDemo ? url(p.demoUrl) : "",
     repository: p.shareRepo ? url(p.repository) : "",
-    screenshotIds: p.shareScreenshots ? p.screenshotIds : [],
-    sourceId: p.shareFiles ? p.sourceId : "",
+    screenshotIds: p.shareScreenshots
+      ? (p.sharedScreenshotIds ?? p.screenshotIds)
+      : [],
+    sourceId: p.shareFiles ? (p.sharedSourceId ?? p.sourceId) : "",
     sourceName: p.shareFiles ? text(p.sourceName) : "",
+    documents: documents.map((d) => ({
+      id: String(d.id),
+      name: text(String(d.name)),
+    })),
     videoUrl: p.shareVideo ? url(p.videoUrl) : "",
     waitlistEnabled: p.waitlistEnabled,
     enquiriesEnabled: p.enquiriesEnabled,

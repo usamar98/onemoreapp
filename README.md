@@ -24,6 +24,7 @@ Open http://localhost:3000. The initial dashboard is an explicitly labeled previ
 - Persistent projects, descriptions, repository/demo links, tags, screenshots, all five statuses, search, filters, grid/list views, and a draggable queue with keyboard arrow buttons.
 - GitHub imports with metadata, README, a real commit SHA, and a source snapshot. Public repositories work without credentials; private repositories use the owner's GitHub connection.
 - ZIP uploads with bounds on size and file count, unsafe path rejection, credential-file exclusions, and secret scanning. Source archives and deployable static builds are stored separately.
+- **Quick Publish:** drag-and-drop HTML, static ZIPs, PDFs, and images; private previews, publishing checks, upload progress, and explicit project-page sharing or Vercel deployment. Replacement files stay private until reviewed and published. See [QUICK_PUBLISH.md](QUICK_PUBLISH.md).
 - Vercel publishing through the owner's account, optional team scope, deployment-state polling, and a real provider URL recorded only when the deployment is ready. No fabricated demo URLs.
 - Stable public project links; owners independently opt into screenshots, demo, repository link, and source downloads. Revoking sharing immediately stops new file access; already issued cloud download URLs expire within 60 seconds.
 - Parking stores an immutable context record and source-version reference, including setup, completed features, blockers, reason, next task, and intended return date. Hosting continues unchanged.

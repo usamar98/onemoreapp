@@ -59,7 +59,9 @@ export async function staticFiles(build: Buffer) {
       /(^|\/)(vercel\.(json|ts)|package(?:-lock)?\.json|README(?:\.[^/]*)?)$/i.test(
         entry.name,
       ) ||
-      /\.(map|ts|tsx|jsx|py|rb|go|rs|sql|pem|key)$/i.test(entry.name)
+      /\.(map|ts|tsx|jsx|vue|svelte|py|rb|go|rs|sql|php[0-9]?|phtml|asp|aspx|jsp|pem|key)$/i.test(
+        entry.name,
+      )
     )
       continue;
     const data = await entry.async("nodebuffer");

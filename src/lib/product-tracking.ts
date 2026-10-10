@@ -61,6 +61,7 @@ export async function trackOutcome(
     if (
       kind === "import" &&
       action &&
+      !p.quickPublish &&
       (!p.sourceId || !Array.isArray(data.excluded))
     )
       return;
@@ -71,7 +72,10 @@ export async function trackOutcome(
           ? "park:" + p.id + ":" + p.memory?.savedAt
           : kind === "handover"
             ? "handover:" + p.handover?.id
-            : "import:" + p.id + ":" + (p.sourceId || "metadata");
+            : "import:" +
+              p.id +
+              ":" +
+              (p.quickPublish?.assetId || p.sourceId || "metadata");
     await productEvent(actor, a.owner, p.id, kind, "completed", eventId);
   } catch (error) {
     if (error instanceof AppError && [401, 403, 404].includes(error.status))

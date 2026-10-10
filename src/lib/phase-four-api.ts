@@ -675,7 +675,16 @@ export async function phaseFourRoute(
           )
           .parse(input.slug),
         published = z.boolean().parse(input.published);
-      const data = { ...options, title: preview.title, intro: preview.intro };
+      const data = {
+        ...options,
+        title: preview.title,
+        intro: preview.intro,
+        projects: options.projects.map((p) => ({
+          ...p,
+          screenshotIds: preview.projects.find((entry) => entry.id === p.id)!
+            .screenshotIds,
+        })),
+      };
       if (
         await db()
           .prepare(

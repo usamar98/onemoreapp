@@ -24,6 +24,8 @@ export function storedRecords(project: Project) {
       buildId: project.buildId,
       version: project.version,
       referencedEnvNames: project.referencedEnvNames,
+      documentIds: project.documentIds || [],
+      quickPublish: project.quickPublish || null,
     },
   };
 }

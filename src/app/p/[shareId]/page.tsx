@@ -132,6 +132,30 @@ export default async function SharedPage({
             ))}
           </section>
         ) : null}
+        {project.documents.length ? (
+          <section className="shared-documents">
+            <h2>Project documents</h2>
+            <p>PDFs selected for sharing by the project owner.</p>
+            {project.documents.map((document) => (
+              <div className="shared-document" key={document.id}>
+                <strong>{document.name}</strong>
+                <div>
+                  <a
+                    className="button"
+                    href={`/api/files/${document.id}?preview=1`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open PDF <ArrowUpRight size={15} />
+                  </a>
+                  <a className="button" href={`/api/files/${document.id}`}>
+                    <Download size={15} /> Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </section>
+        ) : null}
         <PublicInterest
           shareId={project.shareId}
           waitlist={project.waitlistEnabled}

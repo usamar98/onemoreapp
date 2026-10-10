@@ -20,9 +20,23 @@ export type Memory = {
   repoInfo?: string;
 };
 export type Project = {
+  documentIds?: string[];
+  shareDocuments?: boolean;
+  sharedDocumentIds?: string[];
+  sharedScreenshotIds?: string[];
+  sharedSourceId?: string;
+  quickPublish?: QuickPublishRecord | null;
   documentation?: string;
   taskBreakdown?: string;
-  progressUpdates?: { id: string; at: string; notes: string; commit: string; nextTask: string; fileId: string; kind: "capture" | "session" }[];
+  progressUpdates?: {
+    id: string;
+    at: string;
+    notes: string;
+    commit: string;
+    nextTask: string;
+    fileId: string;
+    kind: "capture" | "session";
+  }[];
   syncEnabled?: boolean;
   sync?: {
     attemptedAt: string;
@@ -84,6 +98,24 @@ export type Project = {
   expenses: Expense[];
   handover: Handover | null;
   interest?: InterestCounts;
+};
+export type QuickPublishRecord = {
+  format: "html" | "zip" | "pdf" | "image";
+  name: string;
+  assetId: string;
+  digest: string;
+  checkedAt: string;
+  fileCount: number;
+  excluded: number;
+  warnings: string[];
+};
+export type QuickPublishPreview = {
+  record: QuickPublishRecord;
+  deployable: boolean;
+  html?: string;
+  fileUrl?: string;
+  envNames: string[];
+  vercelConnected?: boolean;
 };
 export type InterestCounts = {
   visits: number;
@@ -160,6 +192,9 @@ export function normalizeProject(project: Project): Project {
       hostingCheckedAt: "",
       expenses: [],
       handover: null,
+      documentIds: [],
+      shareDocuments: false,
+      quickPublish: null,
     },
     project,
   );

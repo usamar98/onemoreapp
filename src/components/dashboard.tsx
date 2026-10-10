@@ -34,6 +34,7 @@ import {
   BookOpen,
   Leaf,
   Command,
+  UploadCloud,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -72,6 +73,9 @@ const ContinuationPanel = dynamic(() =>
 const PreservationPanel = dynamic(() =>
   import("./preservation-panel").then((m) => m.PreservationPanel),
 );
+const QuickPublishPanel = dynamic(() =>
+  import("./quick-publish-panel").then((m) => m.QuickPublishPanel),
+);
 type OpenPanel =
   | {
       kind:
@@ -82,7 +86,8 @@ type OpenPanel =
   | { kind: "knowledge"; tool: KnowledgeTool; project?: Project }
   | { kind: "launch"; project?: Project; tool?: "support" }
   | { kind: "continuation"; project?: Project }
-  | { kind: "preservation"; project?: Project };
+  | { kind: "preservation"; project?: Project }
+  | { kind: "quick-publish"; project?: Project };
 export function Dashboard({ initial }: { initial: Workspace }) {
   const [activeWorkspace, setActiveWorkspace] = useState(
     initial.user?.id || "",
@@ -263,6 +268,20 @@ export function Dashboard({ initial }: { initial: Workspace }) {
       setError((err as Error).message);
     }
   }
+  async function openQuickPublish(project?: Project) {
+    setError("");
+    try {
+      const ws = await ensure();
+      const actual = project
+        ? ws.projects.find((p) => p.id === project.id) ||
+          ws.projects.find((p) => p.name === project.name)
+        : undefined;
+      setPanel({ kind: "quick-publish", project: actual });
+      setMobileNav(false);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
   function saved(project: Project, message?: string) {
     setWorkspace((s) => ({
       ...s,
@@ -438,6 +457,9 @@ export function Dashboard({ initial }: { initial: Workspace }) {
         </nav>
         <span className="nav-label tools-label">TOOLS</span>
         <nav aria-label="Workspace tools">
+          <button className="nav-item" onClick={() => openQuickPublish()}>
+            <UploadCloud size={18} /> Quick Publish
+          </button>
           <button
             className="nav-item"
             onClick={() => {
@@ -634,14 +656,19 @@ export function Dashboard({ initial }: { initial: Workspace }) {
                         : "The small steps that move your projects forward."}
               </p>
             </div>
-            <Button
-              className="primary add-project"
-              busy={busy}
-              onClick={() => open("new")}
-            >
-              <Plus size={17} />
-              New project
-            </Button>
+            <div className="page-actions">
+              <Button busy={busy} onClick={() => openQuickPublish()}>
+                <UploadCloud size={17} /> Quick Publish
+              </Button>
+              <Button
+                className="primary add-project"
+                busy={busy}
+                onClick={() => open("new")}
+              >
+                <Plus size={17} />
+                New project
+              </Button>
+            </div>
           </div>
           {error ? (
             <div className="dashboard-error">
@@ -1273,6 +1300,26 @@ export function Dashboard({ initial }: { initial: Workspace }) {
       {panel?.kind === "new" ? (
         <ProjectEditor onClose={() => setPanel(null)} onSaved={saved} />
       ) : null}
+      {panel?.kind === "quick-publish" ? (
+        <QuickPublishPanel
+          key={selected?.id || "new"}
+          project={selected || undefined}
+          vercel={workspace.integrations.vercel}
+          workspaceRole={
+            workspace.workspaces?.find((w) => w.id === activeWorkspace)?.role ||
+            "Owner"
+          }
+          canCreate={
+            !workspace.workspaces?.find((w) => w.id === activeWorkspace)
+              ?.scope &&
+            workspace.workspaces?.find((w) => w.id === activeWorkspace)
+              ?.role !== "Viewer"
+          }
+          onClose={() => setPanel(null)}
+          onSaved={saved}
+          onIntegrations={() => setPanel({ kind: "integrations" })}
+        />
+      ) : null}
       {selected && panel?.kind === "edit" ? (
         <ProjectEditor
           project={selected}
@@ -1320,6 +1367,7 @@ export function Dashboard({ initial }: { initial: Workspace }) {
           onPreserve={() =>
             setPanel({ kind: "preservation", project: selected })
           }
+          onQuickPublish={() => openQuickPublish(selected)}
         />
       ) : null}
       {selected && panel?.kind === "lifecycle" ? (

@@ -11,6 +11,7 @@ export type PortfolioOptions = {
     id: string;
     demo: boolean;
     screenshots: boolean;
+    screenshotIds?: string[];
     enquiries: boolean;
   }[];
 };
@@ -36,7 +37,11 @@ export async function portfolioPreview(
       color: p.color,
       inactive: p.status === "Parked" || p.hostingPaused === true,
       demoUrl: selection.demo ? safeUrl(text(p.demoUrl)) : "",
-      screenshotIds: selection.screenshots ? p.screenshotIds : [],
+      screenshotIds: selection.screenshots
+        ? (selection.screenshotIds ?? p.screenshotIds).filter((id) =>
+            p.screenshotIds.includes(id),
+          )
+        : [],
       enquiries: selection.enquiries,
       updatedAt: p.updatedAt,
     });
@@ -82,7 +87,10 @@ export async function portfolioFile(slug: string, fileId: string) {
   const options = JSON.parse(String(row.data)) as PortfolioOptions;
   for (const s of options.projects.filter((s) => s.screenshots)) {
     const a = await projectAccess(s.id, String(row.owner));
-    if (a.project.screenshotIds.includes(fileId)) {
+    if (
+      (s.screenshotIds ?? a.project.screenshotIds).includes(fileId) &&
+      a.project.screenshotIds.includes(fileId)
+    ) {
       const f = await db()
         .prepare(
           "SELECT * FROM uploads WHERE id=? AND project_id=? AND kind='screenshot'",
@@ -92,4 +100,25 @@ export async function portfolioFile(slug: string, fileId: string) {
     }
   }
   throw new AppError("Screenshot is not published.", 404);
+}
+
+// Legacy portfolios used the current image list. Freeze that approved list
+// before adding files so a private upload cannot silently become public.
+export async function pinPortfolioScreenshots(
+  owner: string,
+  project: { id: string; screenshotIds: string[] },
+) {
+  const row = await db()
+    .prepare("SELECT data FROM public_portfolios WHERE owner=?")
+    .get(owner);
+  if (!row) return;
+  const options = JSON.parse(String(row.data)) as PortfolioOptions;
+  const selection = options.projects.find(
+    (p) => p.id === project.id && p.screenshots,
+  );
+  if (!selection || selection.screenshotIds) return;
+  selection.screenshotIds = [...project.screenshotIds];
+  await db()
+    .prepare("UPDATE public_portfolios SET data=? WHERE owner=?")
+    .run(JSON.stringify(options), owner);
 }
